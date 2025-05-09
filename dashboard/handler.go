@@ -29,6 +29,7 @@ func NewHandler(options HandlerOptions) *Handler {
 	}
 
 	mux.HandleFunc("/logs", handler.getLogs)
+	mux.HandleFunc("/http-client-requests", handler.getHTTPClientRequests)
 
 	return handler
 }
@@ -51,4 +52,18 @@ func (h *Handler) getLogs(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("</ul></body></html>"))
 
 	// templ.Handler(views.RootPage()).ServeHTTP(w, r)
+}
+
+func (h *Handler) getHTTPClientRequests(w http.ResponseWriter, r *http.Request) {
+	requests := h.httpClientCollector.GetRequests(10)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	// TODO Use proper templating
+	_, _ = w.Write([]byte("<html><body><h1>Recent HTTP Client Requests</h1><ul>"))
+	for _, req := range requests {
+		_, _ = w.Write([]byte("<li>" + req.RequestTime.Format(time.RFC3339) + " " + html.EscapeString(req.Method) + " " + html.EscapeString(req.URL) + " " + html.EscapeString(req.ResponseBody.String()) + "</li>"))
+
+	}
+	_, _ = w.Write([]byte("</ul></body></html>"))
 }
