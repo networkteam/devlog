@@ -1,0 +1,80 @@
+package views
+
+templ LogList() {
+	<ul class="divide-y divide-neutral-300">
+		@LogListItem()
+		@LogListItem()
+		@LogListItem()
+		@LogListItem()
+		@LogListItem()
+	</ul>
+}
+
+templ LogListItem() {
+	<li class="p-3 hover:bg-neutral-100 cursor-pointer transition-colors">
+		<div class="flex items-center justify-between mb-1">
+			<div class="flex gap-2">
+				<div
+					class={ badgeClasses(BadgeProps{
+                        Variant: BadgeVariantOutline,
+                    }) }
+				>
+					GET
+				</div>
+				<div
+					class={ badgeClasses(BadgeProps{
+                        Variant: BadgeVariantSuccess,
+                    }) }
+				>
+					200
+				</div>
+			</div>
+			<span class="text-xs text-neutral-500">
+				2 minutes ago
+			</span>
+		</div>
+		<div class="truncate text-sm font-semibold">/api/users</div>
+		<div class="text-xs text-neutral-500 mt-1">localhost:8080</div>
+	</li>
+}
+
+templ LogDetails() {
+	<div class="p-4">
+		<div class="mb-6">
+			<div class="flex items-center gap-2 mb-2">
+				<div
+					class={ badgeClasses(BadgeProps{
+                        Variant: BadgeVariantSecondary,
+                    }) }
+				>
+					GET
+				</div>
+				<h2 class="text-lg font-semibold truncate">/api/users</h2>
+			</div>
+			<div class="flex flex-wrap gap-4 text-sm text-muted-foreground">
+				<div class="flex items-center gap-1">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info h-4 w-4"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+					<span>
+						Status:
+						<span
+							class="text-green-600"
+						>
+							200
+						</span>
+					</span>
+				</div>
+				<div class="flex items-center gap-1">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock h-4 w-4"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+					<span>123ms</span>
+				</div>
+				<div class="flex items-center gap-1">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-down-up h-4 w-4"><path d="m3 16 4 4 4-4"></path><path d="M7 20V4"></path><path d="m21 8-4-4-4 4"></path><path d="M17 4v16"></path></svg>
+					<span>Incoming</span>
+				</div>
+				<div>
+					<span>today at 3:09 PM</span>
+				</div>
+			</div>
+		</div>
+	</div>
+}

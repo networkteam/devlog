@@ -8,7 +8,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/a-h/templ"
+
 	"github.com/networkteam/devlog/collector"
+	"github.com/networkteam/devlog/dashboard/views"
 )
 
 type Handler struct {
@@ -35,6 +38,7 @@ func NewHandler(options HandlerOptions) *Handler {
 	}
 
 	// Mount handlers for each section
+	mux.HandleFunc("/", handler.root)
 	mux.HandleFunc("/logs", handler.getLogs)
 	mux.HandleFunc("/logs/events", handler.getLogsSSE)
 	mux.HandleFunc("/http-client-requests", handler.getHTTPClientRequests)
@@ -45,6 +49,13 @@ func NewHandler(options HandlerOptions) *Handler {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
+}
+
+func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	templ.Handler(views.Dashboard()).ServeHTTP(w, r)
 }
 
 func (h *Handler) getLogs(w http.ResponseWriter, r *http.Request) {

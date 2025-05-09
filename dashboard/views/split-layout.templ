@@ -1,0 +1,10 @@
+package views
+
+templ SplitLayout(leftContent, rightContent templ.Component) {
+	<div class="grid grid-cols-[24rem_1fr] grow">
+		<div class="border-r border-neutral-300">
+			@leftContent
+		</div>
+		<div>@rightContent</div>
+	</div>
+}

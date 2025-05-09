@@ -42,7 +42,7 @@ func Layout() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<html lang=\"en\" class=\"bg-gray-50\"><head><title>devlog</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/favicon.ico\"><script src=\"https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4\"></script></head><body class=\"min-h-screen flex flex-col justify-between\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<html lang=\"en\"><head><title>devlog</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/favicon.ico\"><script src=\"https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4\"></script></head><body class=\"min-h-screen flex flex-col justify-between\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
