@@ -12,11 +12,9 @@ import (
 // HTTPClientOptions configures the HTTP client collector
 type HTTPClientOptions struct {
 	// MaxBodyBufferPool is the maximum size in bytes of the buffer pool
-	// Default: 64MB
 	MaxBodyBufferPool int64
 
 	// MaxBodySize is the maximum size in bytes of a single body
-	// Default: 1MB
 	MaxBodySize int64
 
 	// CaptureRequestBody indicates whether to capture request bodies
@@ -39,10 +37,9 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 // HTTPClientCollector collects outgoing HTTP requests
 type HTTPClientCollector struct {
 	buffer   *RingBuffer[HTTPRequest]
+	mu       sync.RWMutex
 	bodyPool *BodyBufferPool
 	options  HTTPClientOptions
-
-	mu sync.RWMutex
 }
 
 // NewHTTPClientCollector creates a new collector for outgoing HTTP requests
@@ -125,6 +122,11 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		RequestHeaders: req.Header.Clone(),
 	}
 
+	// Track the original request body size
+	if req.ContentLength > 0 {
+		httpReq.RequestSize = req.ContentLength
+	}
+
 	// Capture request body if present and configured to do so
 	if req.Body != nil && t.collector.options.CaptureRequestBody {
 		// Wrap the body to capture it
@@ -158,8 +160,11 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 		// Capture response body if present and configured to do so
 		if resp.Body != nil && t.collector.options.CaptureResponseBody {
+			// Create a copy of the response to read the body even if the client doesn't
+			originalRespBody := resp.Body
+
 			// Wrap the body to capture it
-			body := NewBody(resp.Body, t.collector.bodyPool)
+			body := NewBody(originalRespBody, t.collector.bodyPool)
 
 			// Store the body in the request record
 			httpReq.ResponseBody = body

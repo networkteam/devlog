@@ -13,7 +13,7 @@ import (
 // Constants for body capture
 const (
 	// DefaultBodyBufferSize is the default size of the buffer pool
-	DefaultBodyBufferSize = 64 * 1024 * 1024 // 64MB
+	DefaultBodyBufferSize = 100 * 1024 * 1024 // 100MB
 
 	// DefaultMaxBodySize is the default maximum size for a single body
 	DefaultMaxBodySize = 1 * 1024 * 1024 // 1MB
@@ -216,7 +216,8 @@ func (b *Body) Read(p []byte) (n int, err error) {
 	return n, err
 }
 
-// Close closes the original body and finalizes the buffer
+// Close closes the original body and finalizes the buffer.
+// This will attempt to read any unread data from the original body.
 func (b *Body) Close() error {
 	if b == nil || b.reader == nil {
 		return nil
@@ -236,19 +237,16 @@ func (b *Body) Close() error {
 
 	b.mu.Unlock()
 
-	// Close the original reader
-	err := b.reader.Close()
-
 	// If the body wasn't fully read but we need to capture it,
 	// read the rest of it into our buffer
-	if !fullyConsumed && b.size < b.maxSize {
+	if !fullyConsumed {
 		// Create a buffer for reading
 		buf := make([]byte, 32*1024) // 32KB chunks
 
 		// Try to read more data
-		var readErr error
 		for {
 			var n int
+			var readErr error
 			n, readErr = b.reader.Read(buf)
 
 			if n > 0 {
@@ -272,10 +270,14 @@ func (b *Body) Close() error {
 			}
 
 			if readErr != nil {
+				// We've read all we can
 				break
 			}
 		}
 	}
+
+	// Now close the original reader
+	err := b.reader.Close()
 
 	// Mark as fully captured
 	b.mu.Lock()
