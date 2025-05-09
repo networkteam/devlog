@@ -2,8 +2,10 @@ package devlog
 
 import (
 	"log/slog"
+	"net/http"
 
 	"github.com/networkteam/devlog/collector"
+	"github.com/networkteam/devlog/dashboard"
 )
 
 type Instance struct {
@@ -46,4 +48,12 @@ func NewWithOptions(options Options) *Instance {
 		logCollector: collector.NewLogCollector(options.LogCapacity),
 	}
 	return instance
+}
+
+func (i *Instance) DashboardHandler() http.Handler {
+	return dashboard.NewHandler(
+		dashboard.HandlerOptions{
+			LogCollector: i.logCollector,
+		},
+	)
 }

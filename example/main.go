@@ -1,11 +1,9 @@
 package main
 
 import (
-	"html"
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	slogmulti "github.com/samber/slog-multi"
 
@@ -33,20 +31,6 @@ func main() {
 	)
 	slog.SetDefault(logger)
 
-	http.HandleFunc("/inspect", func(w http.ResponseWriter, r *http.Request) {
-		recentLogs := dlog.Logs(10)
-
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-
-		// TODO Use proper templating
-		_, _ = w.Write([]byte("<html><body><h1>Recent Logs</h1><ul>"))
-		for _, log := range recentLogs {
-			_, _ = w.Write([]byte("<li>" + log.Time.Format(time.RFC3339) + " " + html.EscapeString(log.Message) + "</li>"))
-		}
-		_, _ = w.Write([]byte("</ul></body></html>"))
-	})
-
 	// 2. Create an HTTP client with devlog middleware (RoundTripper)
 
 	// 3. Create a new HTTP server with a simple handler
@@ -62,10 +46,14 @@ func main() {
 
 	// 4. Wrap with devlog middleware to inspect requests and responses to the server
 
+	// 5. Mount devlog dashboard
+
+	http.Handle("/_devlog/", http.StripPrefix("/_devlog", dlog.DashboardHandler()))
+
 	// Run the server
 
-	logger.Info("Starting server on :9911")
-	if err := http.ListenAndServe(":9911", nil); err != nil {
+	logger.Info("Starting server on :1095")
+	if err := http.ListenAndServe(":1095", nil); err != nil {
 		logger.Error("Failed to start server", slog.Group("error", slog.String("message", err.Error())))
 		os.Exit(1)
 	}
