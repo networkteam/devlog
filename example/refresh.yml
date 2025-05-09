@@ -20,3 +20,5 @@ enable_colors: true
 log_name: ""
 # Enable a live reload server that pushes an SSE event to the client when the app was rebuilt.
 live_reload: true
+# A URL to check the readyness of the application before sending a reload event.
+readyness_url: http://localhost:1095/healthz

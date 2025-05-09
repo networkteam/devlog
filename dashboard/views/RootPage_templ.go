@@ -41,7 +41,7 @@ func RootPage() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "Hallo asdadsaasdas")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "Hallo Welt")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

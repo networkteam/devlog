@@ -33,6 +33,10 @@ func main() {
 	)
 	slog.SetDefault(logger)
 
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
 	// 2. Create an HTTP client with devlog middleware (RoundTripper)
 
 	httpClient := &http.Client{

@@ -28,6 +28,9 @@ templ Layout() {
 			<main class="flex items-center justify-center grow">
 				{ children... }
 			</main>
+			if url := os.Getenv("REFRESH_LIVE_RELOAD_SCRIPT_URL"); url != "" {
+				<script src={ url }></script>
+			}
 		</body>
 	</html>
 }
