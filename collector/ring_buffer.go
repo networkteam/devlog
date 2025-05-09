@@ -13,6 +13,10 @@ type RingBuffer[T any] struct {
 
 // NewRingBuffer creates a new ring buffer with the given capacity
 func NewRingBuffer[T any](capacity uint64) *RingBuffer[T] {
+	if capacity == 0 {
+		panic("capacity must be greater than 0")
+	}
+
 	return &RingBuffer[T]{
 		buffer:     make([]T, capacity),
 		capacity:   capacity,

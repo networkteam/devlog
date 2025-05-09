@@ -2,39 +2,60 @@ package collector
 
 import (
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
 )
 
-// HTTPRequest represents a captured HTTP request/response pair
-type HTTPRequest struct {
-	ID              uuid.UUID
-	Method          string
-	URL             string
-	RequestTime     time.Time
-	ResponseTime    time.Time
-	StatusCode      int
-	RequestSize     int64
-	ResponseSize    int64
-	RequestHeaders  http.Header
-	ResponseHeaders http.Header
-	RequestBody     *Body
-	ResponseBody    *Body
-	Error           error
+// HTTPClientOptions configures the HTTP client collector
+type HTTPClientOptions struct {
+	// MaxBodyBufferPool is the maximum size in bytes of the buffer pool
+	// Default: 64MB
+	MaxBodyBufferPool int64
+
+	// MaxBodySize is the maximum size in bytes of a single body
+	// Default: 1MB
+	MaxBodySize int64
+
+	// CaptureRequestBody indicates whether to capture request bodies
+	CaptureRequestBody bool
+
+	// CaptureResponseBody indicates whether to capture response bodies
+	CaptureResponseBody bool
+}
+
+// DefaultHTTPClientOptions returns default options for the HTTP client collector
+func DefaultHTTPClientOptions() HTTPClientOptions {
+	return HTTPClientOptions{
+		MaxBodyBufferPool:   defaultBodyBufferSize,
+		MaxBodySize:         defaultMaxBodySize,
+		CaptureRequestBody:  true,
+		CaptureResponseBody: true,
+	}
 }
 
 // HTTPClientCollector collects outgoing HTTP requests
 type HTTPClientCollector struct {
-	buffer *RingBuffer[HTTPRequest]
-	mu     sync.RWMutex
+	buffer   *RingBuffer[HTTPRequest]
+	bodyPool *BodyBufferPool
+	options  HTTPClientOptions
+
+	mu sync.RWMutex
 }
 
 // NewHTTPClientCollector creates a new collector for outgoing HTTP requests
 func NewHTTPClientCollector(capacity uint64) *HTTPClientCollector {
+	return NewHTTPClientCollectorWithOptions(capacity, DefaultHTTPClientOptions())
+}
+
+// NewHTTPClientCollectorWithOptions creates a new collector with specified options
+func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOptions) *HTTPClientCollector {
 	return &HTTPClientCollector{
-		buffer: NewRingBuffer[HTTPRequest](capacity),
+		buffer:   NewRingBuffer[HTTPRequest](capacity),
+		bodyPool: NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
+		options:  options,
 	}
 }
 
@@ -60,6 +81,28 @@ func (c *HTTPClientCollector) Add(req HTTPRequest) {
 	c.buffer.Add(req)
 }
 
+// HTTPRequest represents a captured HTTP request/response pair
+type HTTPRequest struct {
+	ID              uuid.UUID
+	Method          string
+	URL             string
+	RequestTime     time.Time
+	ResponseTime    time.Time
+	StatusCode      int
+	RequestSize     int64
+	ResponseSize    int64
+	RequestHeaders  http.Header
+	ResponseHeaders http.Header
+	RequestBody     *Body
+	ResponseBody    *Body
+	Error           error
+}
+
+// Duration returns the duration of the request
+func (r HTTPRequest) Duration() time.Duration {
+	return r.ResponseTime.Sub(r.RequestTime)
+}
+
 // httpClientTransport is an http.RoundTripper that captures HTTP request/response data
 type httpClientTransport struct {
 	next      http.RoundTripper
@@ -70,41 +113,68 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	// Generate a unique ID for this request
 	id := generateID()
 
-	// Capture request data
+	// Record start time
 	requestTime := time.Now()
 
-	// Capture request body if needed (limited size)
-	// requestBody := captureRequestBody(req)
-
-	// Call the next transport
-	resp, err := t.next.RoundTrip(req)
-
-	// Capture response data
-	responseTime := time.Now()
-
-	// Create the HTTP request record
+	// Create a request record
 	httpReq := HTTPRequest{
 		ID:             id,
 		Method:         req.Method,
 		URL:            req.URL.String(),
 		RequestTime:    requestTime,
-		ResponseTime:   responseTime,
 		RequestHeaders: req.Header.Clone(),
 	}
 
-	// Add additional data if we have a response
+	// Capture request body if present and configured to do so
+	if req.Body != nil && t.collector.options.CaptureRequestBody {
+		// Wrap the body to capture it
+		body := NewBody(req.Body, t.collector.bodyPool)
+
+		// Store the body in the request record
+		httpReq.RequestBody = body
+
+		// Replace the request body with our wrapper
+		req.Body = body
+	}
+
+	// Perform the actual request
+	resp, err := t.next.RoundTrip(req)
+
+	// Record end time
+	responseTime := time.Now()
+	httpReq.ResponseTime = responseTime
+
+	// Capture response data if present
 	if resp != nil {
 		httpReq.StatusCode = resp.StatusCode
 		httpReq.ResponseHeaders = resp.Header.Clone()
-		// httpReq.ResponseBody = captureResponseBody(resp)
+
+		// Calculate content length from header if available
+		if contentLength := resp.Header.Get("Content-Length"); contentLength != "" {
+			if length, err := strconv.ParseInt(contentLength, 10, 64); err == nil {
+				httpReq.ResponseSize = length
+			}
+		}
+
+		// Capture response body if present and configured to do so
+		if resp.Body != nil && t.collector.options.CaptureResponseBody {
+			// Wrap the body to capture it
+			body := NewBody(resp.Body, t.collector.bodyPool)
+
+			// Store the body in the request record
+			httpReq.ResponseBody = body
+
+			// Replace the response body with our wrapper
+			resp.Body = body
+		}
 	}
 
-	// If there was an error, record it
+	// Record error if present
 	if err != nil {
 		httpReq.Error = err
 	}
 
-	// Add to the collector
+	// Add the request to the collector
 	t.collector.Add(httpReq)
 
 	return resp, err

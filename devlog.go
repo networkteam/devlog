@@ -9,7 +9,8 @@ import (
 )
 
 type Instance struct {
-	logCollector *collector.LogCollector
+	logCollector        *collector.LogCollector
+	httpClientCollector *collector.HTTPClientCollector
 }
 
 func (i *Instance) Close() {
@@ -31,6 +32,9 @@ type Options struct {
 	// LogCapacity is the maximum number of log entries to keep.
 	// Default: 1000
 	LogCapacity uint64
+	// HTTPClientCapacity is the maximum number of HTTP client requests (outgoing) to keep.
+	// Default: 1000
+	HTTPClientCapacity uint64
 }
 
 // New creates a new devlog dashboard with default options.
@@ -43,9 +47,13 @@ func NewWithOptions(options Options) *Instance {
 	if options.LogCapacity == 0 {
 		options.LogCapacity = 1000
 	}
+	if options.HTTPClientCapacity == 0 {
+		options.HTTPClientCapacity = 1000
+	}
 
 	instance := &Instance{
-		logCollector: collector.NewLogCollector(options.LogCapacity),
+		logCollector:        collector.NewLogCollector(options.LogCapacity),
+		httpClientCollector: collector.NewHTTPClientCollector(options.HTTPClientCapacity),
 	}
 	return instance
 }
@@ -53,7 +61,12 @@ func NewWithOptions(options Options) *Instance {
 func (i *Instance) DashboardHandler() http.Handler {
 	return dashboard.NewHandler(
 		dashboard.HandlerOptions{
-			LogCollector: i.logCollector,
+			LogCollector:        i.logCollector,
+			HTTPClientCollector: i.httpClientCollector,
 		},
 	)
+}
+
+func (i *Instance) CollectHTTPClient(transport http.RoundTripper) http.RoundTripper {
+	return i.httpClientCollector.Transport(transport)
 }

@@ -9,20 +9,23 @@ import (
 )
 
 type Handler struct {
-	logCollector *collector.LogCollector
+	logCollector        *collector.LogCollector
+	httpClientCollector *collector.HTTPClientCollector
 
 	mux http.Handler
 }
 
 type HandlerOptions struct {
-	LogCollector *collector.LogCollector
+	LogCollector        *collector.LogCollector
+	HTTPClientCollector *collector.HTTPClientCollector
 }
 
 func NewHandler(options HandlerOptions) *Handler {
 	mux := http.NewServeMux()
 	handler := &Handler{
-		logCollector: options.LogCollector,
-		mux:          mux,
+		logCollector:        options.LogCollector,
+		httpClientCollector: options.HTTPClientCollector,
+		mux:                 mux,
 	}
 
 	mux.HandleFunc("/logs", handler.getLogs)
