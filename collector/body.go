@@ -217,7 +217,7 @@ func (b *Body) Read(p []byte) (n int, err error) {
 }
 
 // Close closes the original body and finalizes the buffer.
-// This will attempt to read any unread data from the original body.
+// This will attempt to read any unread data from the original body up to the maximum size limit.
 func (b *Body) Close() error {
 	if b == nil || b.reader == nil {
 		return nil
@@ -232,14 +232,15 @@ func (b *Body) Close() error {
 	// Mark as closed before capturing remaining data to avoid potential recursive calls
 	b.closed = true
 
-	// Check if we've consumed the original reader
+	// Check state to determine if we need to read more data
 	fullyConsumed := b.consumedOriginal
+	maxSizeReached := b.size >= b.maxSize
 
 	b.mu.Unlock()
 
-	// If the body wasn't fully read but we need to capture it,
+	// If the body wasn't fully read and we have room to store more data,
 	// read the rest of it into our buffer
-	if !fullyConsumed {
+	if !fullyConsumed && !maxSizeReached {
 		// Create a buffer for reading
 		buf := make([]byte, 32*1024) // 32KB chunks
 
@@ -251,7 +252,7 @@ func (b *Body) Close() error {
 
 			if n > 0 {
 				b.mu.Lock()
-				// Only write to buffer if we haven't exceeded max size
+				// Check if we've exceeded max size since last read
 				if b.size < b.maxSize {
 					// Determine how much we can write without exceeding max size
 					toWrite := n
@@ -265,8 +266,18 @@ func (b *Body) Close() error {
 						b.buffer.Write(buf[:toWrite])
 						b.size += int64(toWrite)
 					}
+
+					// If we've reached max size, no need to read more
+					maxSizeReached = b.size >= b.maxSize
+				} else {
+					maxSizeReached = true
 				}
 				b.mu.Unlock()
+
+				// If we've reached max size, stop reading
+				if maxSizeReached {
+					break
+				}
 			}
 
 			if readErr != nil {
@@ -276,7 +287,7 @@ func (b *Body) Close() error {
 		}
 	}
 
-	// Now close the original reader
+	// Now close the original reader - its implementation should handle any cleanup
 	err := b.reader.Close()
 
 	// Mark as fully captured
