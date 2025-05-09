@@ -1,0 +1,173 @@
+# devlog
+
+A lightweight, embeddable development dashboard for Go applications. Monitor logs, HTTP requests, and SQL queries all in one place with minimal setup.
+
+![Screenshot of devlog dashboard](docs/screenshot.png)
+
+## Features
+
+- **Logs**: Capture and browse structured logs with filtering and detail view
+- **HTTP Client**: Monitor outgoing HTTP requests with timing, headers, and response info
+- **HTTP Server**: Track incoming HTTP requests to your application
+- **SQL**: Record database queries with timing and parameter information
+- **Low Overhead**: Designed to be lightweight enough for production use
+- **Easy to Integrate**: Embeds into your application with minimal configuration
+- **Auto-refresh**: All panels auto-refresh to show the latest data
+- **Clean UI**: Modern, minimalist interface with responsive design
+
+## Installation
+
+```bash
+go get github.com/networkteam/devlog
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+	"log/slog"
+	"net/http"
+	"os"
+
+	"github.com/networkteam/devlog"
+)
+
+func main() {
+	// 1. Create a new devlog dashboard
+	dashboard := devlog.New()
+	defer dashboard.Close()
+
+	// 2. Set up slog with devlog middleware
+	logger := slog.New(
+		dashboard.CollectSlogLogs(devlog.CollectSlogLogsOptions{
+			Level: slog.LevelDebug,
+		}),
+	)
+	slog.SetDefault(logger)
+
+	// 3. Create a mux and mount the dashboard
+	mux := http.NewServeMux()
+	mux.Handle("/_devlog/", dashboard.Handler())
+
+	// 4. Add your application routes
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("Request received", "path", r.URL.Path)
+		w.Write([]byte("Hello, devlog!"))
+	})
+
+	// 5. Wrap your handler to capture HTTP requests
+	handler := dashboard.WrapHTTPHandler(mux)
+
+	// 6. Start the server
+	slog.Info("Starting server on :8080")
+	slog.Info("Dashboard available at http://localhost:8080/_devlog/")
+	if err := http.ListenAndServe(":8080", handler); err != nil {
+		slog.Error("Failed to start server", "error", err.Error())
+		os.Exit(1)
+	}
+}
+```
+
+Visit `http://localhost:8080/_devlog/` to access the dashboard.
+
+## Complete Example
+
+See [examples/complete](examples/complete/main.go) for a more complete example showing all features.
+
+## Usage
+
+### Capturing Logs
+
+devlog integrates with Go's `slog` package:
+
+```go
+dashboard := devlog.New()
+
+logger := slog.New(
+	dashboard.CollectSlogLogs(devlog.CollectSlogLogsOptions{
+		Level: slog.LevelDebug, // Capture logs at debug level and above
+	}),
+)
+slog.SetDefault(logger)
+
+// Now use slog as normal
+slog.Info("Hello, world!", "foo", "bar")
+slog.Debug("Debug info", 
+	slog.Group("details",
+		slog.Int("count", 42),
+		slog.String("status", "active"),
+	),
+)
+```
+
+### Capturing HTTP Client Requests
+
+Wrap your HTTP clients to capture outgoing requests:
+
+```go
+// Wrap an existing client
+client := &http.Client{Timeout: 10 * time.Second}
+wrappedClient := dashboard.WrapHTTPClient(client)
+
+// Or wrap the default client
+wrappedClient := dashboard.WrapHTTPClient(nil)
+
+// Now use the wrapped client
+resp, err := wrappedClient.Get("https://example.com")
+```
+
+### Capturing Incoming HTTP Requests
+
+Wrap your HTTP handlers to capture incoming requests:
+
+```go
+mux := http.NewServeMux()
+// Add your routes to mux...
+
+// Wrap the handler
+handler := dashboard.WrapHTTPHandler(mux)
+
+// Use the wrapped handler
+http.ListenAndServe(":8080", handler)
+```
+
+### Capturing SQL Queries
+
+Wrap your database connections to capture SQL queries:
+
+```go
+// Wrap a database connection
+db, err := dashboard.WrapDB("sqlite3", ":memory:")
+if err != nil {
+	// Handle error
+}
+
+// Now use the db as normal
+_, err = db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+```
+
+### Configuring the Dashboard
+
+Use options to customize the dashboard:
+
+```go
+dashboard := devlog.NewWithOptions(devlog.Options{
+	BasePath:          "/_devlog",  // URL path for the dashboard
+	LogCapacity:       1000,        // Maximum number of log entries to keep
+	HTTPClientCapacity: 100,        // Maximum number of HTTP client requests to keep
+	HTTPServerCapacity: 100,        // Maximum number of HTTP server requests to keep
+	SQLCapacity:       100,         // Maximum number of SQL queries to keep
+})
+```
+
+## License
+
+MIT
+
+## Credits
+
+- Created by [networkteam](https://networkteam.com)
+- Uses [templ](https://github.com/a-h/templ) for HTML templating
+- Uses [htmx](https://htmx.org/) for UI interactivity
