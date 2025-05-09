@@ -35,6 +35,10 @@ type Options struct {
 	// HTTPClientCapacity is the maximum number of HTTP client requests (outgoing) to keep.
 	// Default: 1000
 	HTTPClientCapacity uint64
+
+	// HTTPClientOptions are the options for the HTTP client collector.
+	// Default: nil, will use collector.DefaultHTTPClientOptions()
+	HTTPClientOptions *collector.HTTPClientOptions
 }
 
 // New creates a new devlog dashboard with default options.
@@ -51,9 +55,14 @@ func NewWithOptions(options Options) *Instance {
 		options.HTTPClientCapacity = 1000
 	}
 
+	httpClientOptions := collector.DefaultHTTPClientOptions()
+	if options.HTTPClientOptions != nil {
+		httpClientOptions = *options.HTTPClientOptions
+	}
+
 	instance := &Instance{
 		logCollector:        collector.NewLogCollector(options.LogCapacity),
-		httpClientCollector: collector.NewHTTPClientCollector(options.HTTPClientCapacity),
+		httpClientCollector: collector.NewHTTPClientCollectorWithOptions(options.HTTPClientCapacity, httpClientOptions),
 	}
 	return instance
 }

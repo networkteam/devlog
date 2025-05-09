@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/gofrs/uuid"
 )
 
 // HTTPClientOptions configures the HTTP client collector
@@ -76,28 +74,6 @@ func (c *HTTPClientCollector) GetRequests(n uint64) []HTTPRequest {
 // Add adds an HTTP request to the collector
 func (c *HTTPClientCollector) Add(req HTTPRequest) {
 	c.buffer.Add(req)
-}
-
-// HTTPRequest represents a captured HTTP request/response pair
-type HTTPRequest struct {
-	ID              uuid.UUID
-	Method          string
-	URL             string
-	RequestTime     time.Time
-	ResponseTime    time.Time
-	StatusCode      int
-	RequestSize     int64
-	ResponseSize    int64
-	RequestHeaders  http.Header
-	ResponseHeaders http.Header
-	RequestBody     *Body
-	ResponseBody    *Body
-	Error           error
-}
-
-// Duration returns the duration of the request
-func (r HTTPRequest) Duration() time.Duration {
-	return r.ResponseTime.Sub(r.RequestTime)
 }
 
 // httpClientTransport is an http.RoundTripper that captures HTTP request/response data
@@ -183,8 +159,4 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	t.collector.Add(httpReq)
 
 	return resp, err
-}
-
-func generateID() uuid.UUID {
-	return uuid.Must(uuid.NewV7())
 }
