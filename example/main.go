@@ -33,9 +33,7 @@ func main() {
 	)
 	slog.SetDefault(logger)
 
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	mux := http.NewServeMux()
 
 	// 2. Create an HTTP client with devlog middleware (RoundTripper)
 
@@ -51,7 +49,7 @@ func main() {
 		Language  string `json:"language"`
 		Permalink string `json:"permalink"`
 	}
-	http.HandleFunc("/http-client", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/http-client", func(w http.ResponseWriter, r *http.Request) {
 		logger := slog.With("component", "http", "handler", "/http-client")
 
 		logger.Debug("Requesting uselessfacts API")
@@ -78,7 +76,7 @@ func main() {
 
 	// 3. Create a new HTTP server with a simple handler
 
-	http.HandleFunc("/log", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/log", func(w http.ResponseWriter, r *http.Request) {
 		logger := slog.With("component", "http", "handler", "/log")
 
 		logger.Debug("Debug log from /log HTTP handler", slog.Group("request", slog.String("method", r.Method)))
@@ -89,14 +87,25 @@ func main() {
 
 	// 4. Wrap with devlog middleware to inspect requests and responses to the server
 
+	outerMux := http.NewServeMux()
+	outerMux.Handle("/", dlog.CollectHTTPServer(
+		mux,
+	))
+
 	// 5. Mount devlog dashboard
 
-	http.Handle("/_devlog/", http.StripPrefix("/_devlog", dlog.DashboardHandler()))
+	outerMux.Handle("/_devlog/", http.StripPrefix("/_devlog", dlog.DashboardHandler()))
+
+	// Add a health check endpoint for refresh
+
+	outerMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
 	// Run the server
 
 	logger.Info("Starting server on :1095")
-	if err := http.ListenAndServe(":1095", nil); err != nil {
+	if err := http.ListenAndServe(":1095", outerMux); err != nil {
 		logger.Error("Failed to start server", slog.Group("error", slog.String("message", err.Error())))
 		os.Exit(1)
 	}
