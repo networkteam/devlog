@@ -49,4 +49,6 @@ func (h *Handler) getLogs(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("<li>" + log.Time.Format(time.RFC3339) + " " + html.EscapeString(log.Message) + "</li>"))
 	}
 	_, _ = w.Write([]byte("</ul></body></html>"))
+
+	// templ.Handler(views.RootPage()).ServeHTTP(w, r)
 }

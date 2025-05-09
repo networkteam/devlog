@@ -1,0 +1,33 @@
+package views
+
+import (
+	"fmt"
+	"os"
+	"time"
+)
+
+func cachebuster(path string) string {
+	if os.Getenv("BACKEND_ENV") == "development" {
+		return fmt.Sprintf("%s?v=%d", path, time.Now().Unix())
+	}
+	return path
+}
+
+templ Layout() {
+	<html lang="en" class="bg-gray-50">
+		<head>
+			<title>devlog</title>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<link rel="icon" type="image/x-icon" href="/static/favicon.ico"/>
+			<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+			// <link rel="stylesheet" href={cachebuster("/static/main.css")} type="text/css" />
+			// <script src="https://unpkg.com/htmx.org@1.9.11"></script>
+			// <script src="https://unpkg.com/htmx.org@1.9.11/dist/ext/sse.js"></script>
+		</head>
+		<body class="min-h-screen flex flex-col justify-between">
+			<main class="flex items-center justify-center grow">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}

@@ -1,0 +1,13 @@
+version: "0.5"
+
+processes:
+  dev:
+    command: go run github.com/networkteam/refresh
+    working_dir: example
+    availability:
+      restart: "always"
+    is_tty: true
+  templ:
+    command: go run github.com/a-h/templ/cmd/templ generate --watch
+    availability:
+      restart: "always"
