@@ -25,7 +25,8 @@ templ Layout() {
 			// <script src="https://unpkg.com/htmx.org@1.9.11/dist/ext/sse.js"></script>
 		</head>
 		<body class="min-h-screen flex flex-col justify-between">
-			<main class="flex items-center justify-center grow">
+			@Header()
+			<main class="grow flex flex-col">
 				{ children... }
 			</main>
 			if url := os.Getenv("REFRESH_LIVE_RELOAD_SCRIPT_URL"); url != "" {
