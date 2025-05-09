@@ -12,11 +12,16 @@ import (
 
 // Constants for body capture
 const (
-	// defaultBodyBufferSize is the default size of the buffer pool
-	defaultBodyBufferSize = 64 * 1024 * 1024 // 100MB
+	// DefaultBodyBufferSize is the default size of the buffer pool
+	DefaultBodyBufferSize = 64 * 1024 * 1024 // 64MB
 
-	// defaultMaxBodySize is the default maximum size for a single body
-	defaultMaxBodySize = 1 * 1024 * 1024 // 1MB
+	// DefaultMaxBodySize is the default maximum size for a single body
+	DefaultMaxBodySize = 1 * 1024 * 1024 // 1MB
+)
+
+var (
+	// ErrBodyClosed is returned when attempting to read from a closed body
+	ErrBodyClosed = errors.New("body is already closed")
 )
 
 // BodyBufferPool manages byte buffers for capturing HTTP bodies
@@ -37,6 +42,14 @@ type bodyBuffer struct {
 
 // NewBodyBufferPool creates a new buffer pool for body capturing
 func NewBodyBufferPool(maxPoolSize, maxBufferSize int64) *BodyBufferPool {
+	// Ensure positive sizes
+	if maxPoolSize <= 0 {
+		maxPoolSize = DefaultBodyBufferSize
+	}
+	if maxBufferSize <= 0 {
+		maxBufferSize = DefaultMaxBodySize
+	}
+
 	return &BodyBufferPool{
 		maxPoolSize:   maxPoolSize,
 		currentSize:   0,
@@ -74,7 +87,17 @@ func (p *BodyBufferPool) RegisterBuffer(buf *bytes.Buffer, size int64) {
 	// Update pool size
 	atomic.AddInt64(&p.currentSize, size)
 
-	// Add buffer to tracking
+	// Find if the buffer is already tracked
+	for i, b := range p.buffers {
+		if b.buffer == buf {
+			// Update existing entry
+			p.buffers[i].size = size
+			p.buffers[i].timestamp = time.Now().Unix()
+			return
+		}
+	}
+
+	// Add buffer to tracking if not found
 	p.buffers = append(p.buffers, &bodyBuffer{
 		buffer:    buf,
 		timestamp: time.Now().Unix(),
@@ -96,35 +119,33 @@ func (p *BodyBufferPool) ensureCapacity(needed int64) {
 
 	// Remove oldest buffers until we have enough capacity
 	for i := 0; i < len(p.buffers) && atomic.LoadInt64(&p.currentSize)+needed > p.maxPoolSize; i++ {
-		// If buffer is still in use, skip it
+		// Skip if the buffer is already empty
 		if p.buffers[i].buffer.Len() == 0 {
 			continue
 		}
 
 		// Subtract buffer size from pool size
-		size := int64(p.buffers[i].buffer.Len())
+		size := p.buffers[i].size
 		atomic.AddInt64(&p.currentSize, -size)
 
 		// Clear buffer to free memory
 		p.buffers[i].buffer.Reset()
-
-		// Remove from tracking
-		p.buffers = append(p.buffers[:i], p.buffers[i+1:]...)
-		i-- // Adjust index after removal
+		p.buffers[i].size = 0
 	}
 }
 
 // Body represents a captured HTTP request or response body
 type Body struct {
-	reader          io.ReadCloser // Original body reader
-	buffer          *bytes.Buffer // Buffer to capture body
-	pool            *BodyBufferPool
-	maxSize         int64
-	size            int64
-	isTruncated     bool
-	isFullyCaptured bool
-	mu              sync.RWMutex
-	closed          bool
+	reader           io.ReadCloser // Original body reader
+	buffer           *bytes.Buffer // Buffer to capture body
+	pool             *BodyBufferPool
+	maxSize          int64
+	size             int64
+	isTruncated      bool
+	isFullyCaptured  bool
+	mu               sync.RWMutex
+	closed           bool
+	consumedOriginal bool // True if the original body has been completely read
 }
 
 // NewBody creates a new Body wrapper for capturing HTTP body content
@@ -137,22 +158,30 @@ func NewBody(rc io.ReadCloser, pool *BodyBufferPool) *Body {
 	buf := pool.GetBuffer()
 
 	return &Body{
-		reader:          rc,
-		buffer:          buf,
-		pool:            pool,
-		maxSize:         pool.maxBufferSize,
-		size:            0,
-		isTruncated:     false,
-		isFullyCaptured: false,
-		closed:          false,
+		reader:           rc,
+		buffer:           buf,
+		pool:             pool,
+		maxSize:          pool.maxBufferSize,
+		size:             0,
+		isTruncated:      false,
+		isFullyCaptured:  false,
+		closed:           false,
+		consumedOriginal: false,
 	}
 }
 
 // Read reads from the original body while also capturing to the buffer
 func (b *Body) Read(p []byte) (n int, err error) {
 	if b == nil || b.reader == nil {
-		return 0, errors.New("body is nil or already closed")
+		return 0, io.EOF
 	}
+
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+		return 0, ErrBodyClosed
+	}
+	b.mu.Unlock()
 
 	// Read from the original reader
 	n, err = b.reader.Read(p)
@@ -177,10 +206,10 @@ func (b *Body) Read(p []byte) (n int, err error) {
 		b.mu.Unlock()
 	}
 
-	// If EOF, mark as fully captured
+	// If EOF, mark as fully consumed
 	if err == io.EOF {
 		b.mu.Lock()
-		b.isFullyCaptured = true
+		b.consumedOriginal = true
 		b.mu.Unlock()
 	}
 
@@ -198,7 +227,13 @@ func (b *Body) Close() error {
 		b.mu.Unlock()
 		return nil
 	}
+
+	// Mark as closed before capturing remaining data to avoid potential recursive calls
 	b.closed = true
+
+	// Check if we've consumed the original reader
+	fullyConsumed := b.consumedOriginal
+
 	b.mu.Unlock()
 
 	// Close the original reader
@@ -206,12 +241,16 @@ func (b *Body) Close() error {
 
 	// If the body wasn't fully read but we need to capture it,
 	// read the rest of it into our buffer
-	if !b.isFullyCaptured && b.size < b.maxSize {
+	if !fullyConsumed && b.size < b.maxSize {
 		// Create a buffer for reading
 		buf := make([]byte, 32*1024) // 32KB chunks
 
+		// Try to read more data
+		var readErr error
 		for {
-			n, err := b.reader.Read(buf)
+			var n int
+			n, readErr = b.reader.Read(buf)
+
 			if n > 0 {
 				b.mu.Lock()
 				// Only write to buffer if we haven't exceeded max size
@@ -232,15 +271,16 @@ func (b *Body) Close() error {
 				b.mu.Unlock()
 			}
 
-			if err != nil {
-				if err != io.EOF {
-					// Log the error but continue
-					// log.Printf("Error reading body: %v", err)
-				}
+			if readErr != nil {
 				break
 			}
 		}
 	}
+
+	// Mark as fully captured
+	b.mu.Lock()
+	b.isFullyCaptured = true
+	b.mu.Unlock()
 
 	// Update pool with final buffer size
 	b.pool.RegisterBuffer(b.buffer, b.size)

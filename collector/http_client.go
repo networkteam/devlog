@@ -29,8 +29,8 @@ type HTTPClientOptions struct {
 // DefaultHTTPClientOptions returns default options for the HTTP client collector
 func DefaultHTTPClientOptions() HTTPClientOptions {
 	return HTTPClientOptions{
-		MaxBodyBufferPool:   defaultBodyBufferSize,
-		MaxBodySize:         defaultMaxBodySize,
+		MaxBodyBufferPool:   DefaultBodyBufferSize,
+		MaxBodySize:         DefaultMaxBodySize,
 		CaptureRequestBody:  true,
 		CaptureResponseBody: true,
 	}
