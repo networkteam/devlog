@@ -10,6 +10,7 @@ import (
 	slogmulti "github.com/samber/slog-multi"
 
 	"github.com/networkteam/devlog"
+	"github.com/networkteam/devlog/collector"
 )
 
 func main() {
@@ -21,7 +22,7 @@ func main() {
 	logger := slog.New(
 		slogmulti.Fanout(
 			// Collect debug logs with devlog
-			dlog.CollectSlogLogs(devlog.CollectSlogLogsOptions{
+			dlog.CollectSlogLogs(collector.CollectSlogLogsOptions{
 				Level: slog.LevelDebug,
 			}),
 			// Log info to stderr

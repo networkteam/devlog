@@ -1,4 +1,4 @@
-package devlog
+package collector
 
 import "sync"
 
