@@ -2,6 +2,7 @@ package collector
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -28,6 +29,9 @@ type HTTPServerOptions struct {
 	// SkipPaths is a list of path prefixes to skip for request collection
 	// Useful for excluding static files or the dashboard itself
 	SkipPaths []string
+
+	// NotifierOptions are options for notification about new requests
+	NotifierOptions *NotifierOptions
 }
 
 // DefaultHTTPServerOptions returns default options for the HTTP server collector
@@ -68,9 +72,11 @@ func (r HTTPServerRequest) Duration() time.Duration {
 // HTTPServerCollector collects incoming HTTP requests
 type HTTPServerCollector struct {
 	buffer   *RingBuffer[HTTPServerRequest]
-	mu       sync.RWMutex
+	notifier *Notifier[HTTPServerRequest]
 	bodyPool *BodyBufferPool
 	options  HTTPServerOptions
+
+	mu sync.RWMutex
 }
 
 // NewHTTPServerCollector creates a new collector for incoming HTTP requests
@@ -80,8 +86,14 @@ func NewHTTPServerCollector(capacity uint64) *HTTPServerCollector {
 
 // NewHTTPServerCollectorWithOptions creates a new collector with specified options
 func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOptions) *HTTPServerCollector {
+	notifierOptions := DefaultNotifierOptions()
+	if options.NotifierOptions != nil {
+		notifierOptions = *options.NotifierOptions
+	}
+
 	return &HTTPServerCollector{
 		buffer:   NewRingBuffer[HTTPServerRequest](capacity),
+		notifier: NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
 		bodyPool: NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
 		options:  options,
 	}
@@ -92,9 +104,15 @@ func (c *HTTPServerCollector) GetRequests(n uint64) []HTTPServerRequest {
 	return c.buffer.GetRecords(n)
 }
 
+// Subscribe returns a channel that receives notifications of new requests
+func (c *HTTPServerCollector) Subscribe(ctx context.Context) <-chan HTTPServerRequest {
+	return c.notifier.Subscribe(ctx)
+}
+
 // Add adds an HTTP server request to the collector
 func (c *HTTPServerCollector) Add(req HTTPServerRequest) {
 	c.buffer.Add(req)
+	c.notifier.Notify(req)
 }
 
 // Middleware returns an http.Handler middleware that captures request/response data
@@ -175,6 +193,11 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 		// Add to the collector
 		c.Add(httpReq)
 	})
+}
+
+// Close releases resources used by the collector
+func (c *HTTPServerCollector) Close() {
+	c.notifier.Close()
 }
 
 // captureResponseWriter is a wrapper for http.ResponseWriter that captures the response

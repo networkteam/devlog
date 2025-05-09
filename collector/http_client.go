@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"sync"
@@ -20,6 +21,9 @@ type HTTPClientOptions struct {
 
 	// CaptureResponseBody indicates whether to capture response bodies
 	CaptureResponseBody bool
+
+	// NotifierOptions are options for notification about new requests
+	NotifierOptions *NotifierOptions
 }
 
 // DefaultHTTPClientOptions returns default options for the HTTP client collector
@@ -35,9 +39,11 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 // HTTPClientCollector collects outgoing HTTP requests
 type HTTPClientCollector struct {
 	buffer   *RingBuffer[HTTPRequest]
-	mu       sync.RWMutex
+	notifier *Notifier[HTTPRequest]
 	bodyPool *BodyBufferPool
 	options  HTTPClientOptions
+
+	mu sync.RWMutex
 }
 
 // NewHTTPClientCollector creates a new collector for outgoing HTTP requests
@@ -47,8 +53,14 @@ func NewHTTPClientCollector(capacity uint64) *HTTPClientCollector {
 
 // NewHTTPClientCollectorWithOptions creates a new collector with specified options
 func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOptions) *HTTPClientCollector {
+	notifierOptions := DefaultNotifierOptions()
+	if options.NotifierOptions != nil {
+		notifierOptions = *options.NotifierOptions
+	}
+
 	return &HTTPClientCollector{
 		buffer:   NewRingBuffer[HTTPRequest](capacity),
+		notifier: NewNotifierWithOptions[HTTPRequest](notifierOptions),
 		bodyPool: NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
 		options:  options,
 	}
@@ -71,9 +83,20 @@ func (c *HTTPClientCollector) GetRequests(n uint64) []HTTPRequest {
 	return c.buffer.GetRecords(n)
 }
 
+// Subscribe returns a channel that receives notifications of new log records
+func (c *HTTPClientCollector) Subscribe(ctx context.Context) <-chan HTTPRequest {
+	return c.notifier.Subscribe(ctx)
+}
+
 // Add adds an HTTP request to the collector
 func (c *HTTPClientCollector) Add(req HTTPRequest) {
 	c.buffer.Add(req)
+	c.notifier.Notify(req)
+}
+
+// Close releases resources used by the collector
+func (c *HTTPClientCollector) Close() {
+	c.notifier.Close()
 }
 
 // httpClientTransport is an http.RoundTripper that captures HTTP request/response data

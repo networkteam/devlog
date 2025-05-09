@@ -1,8 +1,10 @@
 package dashboard
 
 import (
+	"context"
 	"fmt"
 	"html"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -34,6 +36,7 @@ func NewHandler(options HandlerOptions) *Handler {
 
 	// Mount handlers for each section
 	mux.HandleFunc("/logs", handler.getLogs)
+	mux.HandleFunc("/logs/events", handler.getLogsSSE)
 	mux.HandleFunc("/http-client-requests", handler.getHTTPClientRequests)
 	mux.HandleFunc("/http-server-requests", handler.getHTTPServerRequests)
 
@@ -53,9 +56,58 @@ func (h *Handler) getLogs(w http.ResponseWriter, r *http.Request) {
 	// TODO Use proper templating
 	_, _ = w.Write([]byte("<html><body><h1>Recent Logs</h1><a href='/'>&larr; Back to Dashboard</a><ul>"))
 	for _, log := range recentLogs {
-		_, _ = w.Write([]byte("<li>" + log.Time.Format(time.RFC3339) + " " + html.EscapeString(log.Message) + "</li>"))
+		_, _ = w.Write([]byte(formatLogAsHTML(log)))
 	}
 	_, _ = w.Write([]byte("</ul></body></html>"))
+}
+
+func formatLogAsHTML(log slog.Record) string {
+	return "<li>" + log.Time.Format(time.RFC3339) + " " + html.EscapeString(log.Message) + "</li>"
+}
+
+// getLogsSSE handles SSE connections for real-time log updates
+func (h *Handler) getLogsSSE(w http.ResponseWriter, r *http.Request) {
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // For NGINX proxy
+
+	// Create a context that gets canceled when the connection is closed
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	// Monitor for client disconnect
+	go func() {
+		<-ctx.Done()
+		// Context was canceled, connection is closed
+	}()
+
+	// Create a notification channel for new logs
+	logCh := h.logCollector.Subscribe(ctx)
+
+	// Send a keep-alive message initially to ensure the connection is established
+	fmt.Fprintf(w, "event: keepalive\ndata: connected\n\n")
+	w.(http.Flusher).Flush()
+
+	// Listen for new logs and send them as SSE events
+	for {
+		select {
+		case <-ctx.Done():
+			return // Client disconnected
+		case log, ok := <-logCh:
+			if !ok {
+				return // Channel closed
+			}
+
+			// Format log as HTML
+			logHTML := formatLogAsHTML(log)
+
+			// Send as SSE event
+			fmt.Fprintf(w, "data: %s\n\n", logHTML)
+			w.(http.Flusher).Flush()
+		}
+	}
 }
 
 func (h *Handler) getHTTPClientRequests(w http.ResponseWriter, r *http.Request) {

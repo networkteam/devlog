@@ -10,21 +10,52 @@ import (
 
 type LogCollector struct {
 	// Note: logs are hard-coded to slog.Record for now
-	buffer *RingBuffer[slog.Record]
+	buffer   *RingBuffer[slog.Record]
+	notifier *Notifier[slog.Record]
 }
 
 func (c *LogCollector) Collect(record slog.Record) {
 	c.buffer.Add(record)
+	c.notifier.Notify(record)
 }
 
 func (c *LogCollector) Tail(n int) []slog.Record {
 	return c.buffer.GetRecords(uint64(n))
 }
 
+// Subscribe returns a channel that receives notifications of new log records
+func (c *LogCollector) Subscribe(ctx context.Context) <-chan slog.Record {
+	return c.notifier.Subscribe(ctx)
+}
+
 func NewLogCollector(capacity uint64) *LogCollector {
-	return &LogCollector{
-		buffer: NewRingBuffer[slog.Record](capacity),
+	return NewLogCollectorWithOptions(capacity, DefaultLogOptions())
+}
+
+func DefaultLogOptions() LogOptions {
+	return LogOptions{}
+}
+
+type LogOptions struct {
+	// NotifierOptions are options for notification about new logs
+	NotifierOptions *NotifierOptions
+}
+
+func NewLogCollectorWithOptions(capacity uint64, options LogOptions) *LogCollector {
+	notifierOptions := DefaultNotifierOptions()
+	if options.NotifierOptions != nil {
+		notifierOptions = *options.NotifierOptions
 	}
+
+	return &LogCollector{
+		buffer:   NewRingBuffer[slog.Record](capacity),
+		notifier: NewNotifierWithOptions[slog.Record](notifierOptions),
+	}
+}
+
+// Close releases resources used by the collector
+func (c *LogCollector) Close() {
+	c.notifier.Close()
 }
 
 type CollectSlogLogsOptions struct {

@@ -15,24 +15,18 @@ type Instance struct {
 }
 
 func (i *Instance) Close() {
-	// Currently no-op
-}
-
-// Logs returns the most recent n logs.
-func (i *Instance) Logs(n int) []slog.Record {
-	return i.logCollector.Tail(n)
-}
-
-// CollectSlogLogs returns a slog.Handler that collects logs into devlog.
-// You can use this handler with slog.New(slogmulti.Fanout(...)) to collect logs into devlog in addition to another slog handler.
-func (i *Instance) CollectSlogLogs(options collector.CollectSlogLogsOptions) slog.Handler {
-	return collector.NewSlogLogCollectorHandler(i.logCollector, options)
+	i.logCollector.Close()
+	i.httpClientCollector.Close()
+	i.httpServerCollector.Close()
 }
 
 type Options struct {
 	// LogCapacity is the maximum number of log entries to keep.
 	// Default: 1000
 	LogCapacity uint64
+	// LogOptions are the options for the log collector.
+	// Default: nil, will use collector.DefaultLogOptions()
+	LogOptions *collector.LogOptions
 
 	// HTTPClientCapacity is the maximum number of HTTP client requests (outgoing) to keep.
 	// Default: 1000
@@ -66,6 +60,11 @@ func NewWithOptions(options Options) *Instance {
 		options.HTTPServerCapacity = 1000
 	}
 
+	logOptions := collector.DefaultLogOptions()
+	if options.LogOptions != nil {
+		logOptions = *options.LogOptions
+	}
+
 	httpClientOptions := collector.DefaultHTTPClientOptions()
 	if options.HTTPClientOptions != nil {
 		httpClientOptions = *options.HTTPClientOptions
@@ -77,21 +76,18 @@ func NewWithOptions(options Options) *Instance {
 	}
 
 	instance := &Instance{
-		logCollector:        collector.NewLogCollector(options.LogCapacity),
+		logCollector:        collector.NewLogCollectorWithOptions(options.LogCapacity, logOptions),
 		httpClientCollector: collector.NewHTTPClientCollectorWithOptions(options.HTTPClientCapacity, httpClientOptions),
 		httpServerCollector: collector.NewHTTPServerCollectorWithOptions(options.HTTPServerCapacity, httpServerOptions),
 	}
 	return instance
 }
 
-func (i *Instance) DashboardHandler() http.Handler {
-	return dashboard.NewHandler(
-		dashboard.HandlerOptions{
-			LogCollector:        i.logCollector,
-			HTTPClientCollector: i.httpClientCollector,
-			HTTPServerCollector: i.httpServerCollector,
-		},
-	)
+// CollectSlogLogs returns a slog.Handler that collects logs into devlog.
+//
+// You can use this handler with slog.New(slogmulti.Fanout(...)) to collect logs into devlog in addition to another slog handler.
+func (i *Instance) CollectSlogLogs(options collector.CollectSlogLogsOptions) slog.Handler {
+	return collector.NewSlogLogCollectorHandler(i.logCollector, options)
 }
 
 // CollectHTTPClient wraps an http.RoundTripper to collect outgoing HTTP requests.
@@ -102,4 +98,14 @@ func (i *Instance) CollectHTTPClient(transport http.RoundTripper) http.RoundTrip
 // CollectHTTPServer wraps an http.Handler to collect incoming HTTP requests.
 func (i *Instance) CollectHTTPServer(handler http.Handler) http.Handler {
 	return i.httpServerCollector.Middleware(handler)
+}
+
+func (i *Instance) DashboardHandler() http.Handler {
+	return dashboard.NewHandler(
+		dashboard.HandlerOptions{
+			LogCollector:        i.logCollector,
+			HTTPClientCollector: i.httpClientCollector,
+			HTTPServerCollector: i.httpServerCollector,
+		},
+	)
 }
