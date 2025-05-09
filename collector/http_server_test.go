@@ -62,11 +62,83 @@ func TestHTTPServerCollector_BasicRequest(t *testing.T) {
 	assert.Equal(t, http.StatusOK, serverReq.StatusCode)
 	assert.Equal(t, "test-value", serverReq.RequestHeaders.Get("X-Test-Header"))
 	assert.Equal(t, "text/plain", serverReq.ResponseHeaders.Get("Content-Type"))
-	assert.Nil(t, serverReq.RequestBody) // GET request has no body
+
+	// Standard GET request with nil body should have nil RequestBody
+	assert.Nil(t, serverReq.RequestBody, "Standard GET request should not have a captured request body")
+
+	// Response body should be captured
 	assert.NotNil(t, serverReq.ResponseBody)
 	assert.Equal(t, "Hello, World!", serverReq.ResponseBody.String())
 	assert.True(t, serverReq.Duration() > 0)
 	assert.Equal(t, int64(13), serverReq.ResponseSize) // "Hello, World!" is 13 bytes
+}
+
+// Test for GET request with a body to ensure we capture it correctly
+func TestHTTPServerCollector_GetRequestWithBody(t *testing.T) {
+	// Create a server collector
+	serverCollector := collector.NewHTTPServerCollector(100)
+
+	// Create a handler that reads the request body even for GET
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Read the request body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Confirm we're dealing with a GET
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Echo the request body back with a prefix
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("You sent: " + string(body)))
+	})
+
+	// Wrap the handler with our collector
+	wrappedHandler := serverCollector.Middleware(handler)
+
+	// Create a test server
+	server := httptest.NewServer(wrappedHandler)
+	defer server.Close()
+
+	// Create a client and make a GET request WITH a body
+	client := &http.Client{}
+	requestBody := "This is a GET request with a body"
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/get-with-body", strings.NewReader(requestBody))
+	require.NoError(t, err)
+
+	// Send the request
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Read the response body
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "You sent: "+requestBody, string(respBody))
+
+	// Get the collected requests
+	requests := serverCollector.GetRequests(10)
+	require.Len(t, requests, 1)
+
+	// Verify the request details
+	serverReq := requests[0]
+	assert.Equal(t, http.MethodGet, serverReq.Method)
+	assert.Equal(t, "/get-with-body", serverReq.Path)
+	assert.Equal(t, http.StatusOK, serverReq.StatusCode)
+
+	// GET request with a body should have the body captured
+	assert.NotNil(t, serverReq.RequestBody, "GET request with body should have captured the request body")
+	assert.Equal(t, requestBody, serverReq.RequestBody.String())
+
+	// Response body should be captured
+	assert.NotNil(t, serverReq.ResponseBody)
+	assert.Equal(t, "You sent: "+requestBody, serverReq.ResponseBody.String())
 }
 
 func TestHTTPServerCollector_PostRequestWithBody(t *testing.T) {

@@ -37,7 +37,7 @@ func DefaultHTTPServerOptions() HTTPServerOptions {
 		MaxBodySize:         DefaultMaxBodySize,
 		CaptureRequestBody:  true,
 		CaptureResponseBody: true,
-		SkipPaths:           []string{"/_devlog/"},
+		SkipPaths:           nil,
 	}
 }
 
@@ -127,8 +127,9 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 		}
 
 		// Capture the request body if present and configured to do so
+		// Only check if the body is the special NoBody sentinel value (empty body)
 		var requestBody *Body
-		if r.Body != nil && c.options.CaptureRequestBody {
+		if r.Body != nil && r.Body != http.NoBody && c.options.CaptureRequestBody {
 			// Save the original body
 			originalBody := r.Body
 
