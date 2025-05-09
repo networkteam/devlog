@@ -32,16 +32,17 @@ import (
 	"os"
 
 	"github.com/networkteam/devlog"
+	"github.com/networkteam/devlog/collector"
 )
 
 func main() {
 	// 1. Create a new devlog dashboard
-	dashboard := devlog.New()
-	defer dashboard.Close()
+	dlog := devlog.New()
+	defer dlog.Close()
 
 	// 2. Set up slog with devlog middleware
 	logger := slog.New(
-		dashboard.CollectSlogLogs(devlog.CollectSlogLogsOptions{
+		dlog.CollectSlogLogs(collector.CollectSlogLogsOptions{
 			Level: slog.LevelDebug,
 		}),
 	)
@@ -49,7 +50,7 @@ func main() {
 
 	// 3. Create a mux and mount the dashboard
 	mux := http.NewServeMux()
-	mux.Handle("/_devlog/", dashboard.Handler())
+	mux.Handle("/_devlog/", dlog.DashboardHandler())
 
 	// 4. Add your application routes
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +59,7 @@ func main() {
 	})
 
 	// 5. Wrap your handler to capture HTTP requests
-	handler := dashboard.WrapHTTPHandler(mux)
+	handler := dlog.CollectHTTPServer(mux)
 
 	// 6. Start the server
 	slog.Info("Starting server on :8080")
@@ -74,7 +75,7 @@ Visit `http://localhost:8080/_devlog/` to access the dashboard.
 
 ## Complete Example
 
-See [examples/complete](examples/complete/main.go) for a more complete example showing all features.
+See [example](example/main.go) for a more complete example showing all features.
 
 ## Usage
 
@@ -83,10 +84,10 @@ See [examples/complete](examples/complete/main.go) for a more complete example s
 devlog integrates with Go's `slog` package:
 
 ```go
-dashboard := devlog.New()
+dlog := devlog.New()
 
 logger := slog.New(
-	dashboard.CollectSlogLogs(devlog.CollectSlogLogsOptions{
+    dlog.CollectSlogLogs(devlog.CollectSlogLogsOptions{
 		Level: slog.LevelDebug, // Capture logs at debug level and above
 	}),
 )
@@ -161,6 +162,10 @@ dashboard := devlog.NewWithOptions(devlog.Options{
 	SQLCapacity:       100,         // Maximum number of SQL queries to keep
 })
 ```
+
+## TODOs
+
+- [x] Use events to unify collected data in a combined view with grouping
 
 ## License
 

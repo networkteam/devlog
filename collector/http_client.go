@@ -24,6 +24,9 @@ type HTTPClientOptions struct {
 
 	// NotifierOptions are options for notification about new requests
 	NotifierOptions *NotifierOptions
+
+	// EventCollector is an optional event collector for collecting requests as grouped events
+	EventCollector *EventCollector
 }
 
 // DefaultHTTPClientOptions returns default options for the HTTP client collector
@@ -38,10 +41,11 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 
 // HTTPClientCollector collects outgoing HTTP requests
 type HTTPClientCollector struct {
-	buffer   *RingBuffer[HTTPRequest]
-	notifier *Notifier[HTTPRequest]
-	bodyPool *BodyBufferPool
-	options  HTTPClientOptions
+	buffer         *RingBuffer[HTTPRequest]
+	bodyPool       *BodyBufferPool
+	options        HTTPClientOptions
+	notifier       *Notifier[HTTPRequest]
+	eventCollector *EventCollector
 
 	mu sync.RWMutex
 }
@@ -59,10 +63,11 @@ func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOption
 	}
 
 	return &HTTPClientCollector{
-		buffer:   NewRingBuffer[HTTPRequest](capacity),
-		notifier: NewNotifierWithOptions[HTTPRequest](notifierOptions),
-		bodyPool: NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
-		options:  options,
+		buffer:         NewRingBuffer[HTTPRequest](capacity),
+		bodyPool:       NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
+		options:        options,
+		notifier:       NewNotifierWithOptions[HTTPRequest](notifierOptions),
+		eventCollector: options.EventCollector,
 	}
 }
 
@@ -136,6 +141,13 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 		// Replace the request body with our wrapper
 		req.Body = body
+	}
+
+	if t.collector.eventCollector != nil {
+		newCtx := t.collector.eventCollector.StartEvent(req.Context())
+		defer t.collector.eventCollector.EndEvent(newCtx, httpReq)
+
+		req = req.WithContext(newCtx)
 	}
 
 	// Perform the actual request

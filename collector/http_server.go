@@ -32,6 +32,9 @@ type HTTPServerOptions struct {
 
 	// NotifierOptions are options for notification about new requests
 	NotifierOptions *NotifierOptions
+
+	// EventCollector is an optional event collector for collecting requests as grouped events
+	EventCollector *EventCollector
 }
 
 // DefaultHTTPServerOptions returns default options for the HTTP server collector
@@ -71,10 +74,11 @@ func (r HTTPServerRequest) Duration() time.Duration {
 
 // HTTPServerCollector collects incoming HTTP requests
 type HTTPServerCollector struct {
-	buffer   *RingBuffer[HTTPServerRequest]
-	notifier *Notifier[HTTPServerRequest]
-	bodyPool *BodyBufferPool
-	options  HTTPServerOptions
+	buffer         *RingBuffer[HTTPServerRequest]
+	bodyPool       *BodyBufferPool
+	options        HTTPServerOptions
+	notifier       *Notifier[HTTPServerRequest]
+	eventCollector *EventCollector
 
 	mu sync.RWMutex
 }
@@ -92,10 +96,11 @@ func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOption
 	}
 
 	return &HTTPServerCollector{
-		buffer:   NewRingBuffer[HTTPServerRequest](capacity),
-		notifier: NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
-		bodyPool: NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
-		options:  options,
+		buffer:         NewRingBuffer[HTTPServerRequest](capacity),
+		bodyPool:       NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
+		options:        options,
+		notifier:       NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
+		eventCollector: options.EventCollector,
 	}
 }
 
@@ -166,6 +171,13 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 			ResponseWriter: w,
 			bodyPool:       c.bodyPool,
 			captureBody:    c.options.CaptureResponseBody,
+		}
+
+		if c.eventCollector != nil {
+			newCtx := c.eventCollector.StartEvent(r.Context())
+			defer c.eventCollector.EndEvent(newCtx, httpReq)
+
+			r = r.WithContext(newCtx)
 		}
 
 		// Call the next handler

@@ -12,12 +12,14 @@ type Instance struct {
 	logCollector        *collector.LogCollector
 	httpClientCollector *collector.HTTPClientCollector
 	httpServerCollector *collector.HTTPServerCollector
+	eventCollector      *collector.EventCollector
 }
 
 func (i *Instance) Close() {
 	i.logCollector.Close()
 	i.httpClientCollector.Close()
 	i.httpServerCollector.Close()
+	i.eventCollector.Close()
 }
 
 type Options struct {
@@ -41,6 +43,13 @@ type Options struct {
 	// HTTPServerOptions are the options for the HTTP server collector.
 	// Default: nil, will use collector.DefaultHTTPServerOptions()
 	HTTPServerOptions *collector.HTTPServerOptions
+
+	// EventCapacity is the maximum number of events to keep.
+	// Default: 1000
+	EventCapacity uint64
+	// EventOptions are the options for the event collector.
+	// Default: nil, will use collector.DefaultEventOptions()
+	EventOptions *collector.EventOptions
 }
 
 // New creates a new devlog dashboard with default options.
@@ -59,26 +68,40 @@ func NewWithOptions(options Options) *Instance {
 	if options.HTTPServerCapacity == 0 {
 		options.HTTPServerCapacity = 1000
 	}
+	if options.EventCapacity == 0 {
+		options.EventCapacity = 1000
+	}
+
+	eventOptions := collector.DefaultEventOptions()
+	if options.EventOptions != nil {
+		eventOptions = *options.EventOptions
+	}
+
+	eventCollector := collector.NewEventCollectorWithOptions(options.EventCapacity, eventOptions)
 
 	logOptions := collector.DefaultLogOptions()
 	if options.LogOptions != nil {
 		logOptions = *options.LogOptions
 	}
+	logOptions.EventCollector = eventCollector
 
 	httpClientOptions := collector.DefaultHTTPClientOptions()
 	if options.HTTPClientOptions != nil {
 		httpClientOptions = *options.HTTPClientOptions
 	}
+	httpClientOptions.EventCollector = eventCollector
 
 	httpServerOptions := collector.DefaultHTTPServerOptions()
 	if options.HTTPServerOptions != nil {
 		httpServerOptions = *options.HTTPServerOptions
 	}
+	httpServerOptions.EventCollector = eventCollector
 
 	instance := &Instance{
 		logCollector:        collector.NewLogCollectorWithOptions(options.LogCapacity, logOptions),
 		httpClientCollector: collector.NewHTTPClientCollectorWithOptions(options.HTTPClientCapacity, httpClientOptions),
 		httpServerCollector: collector.NewHTTPServerCollectorWithOptions(options.HTTPServerCapacity, httpServerOptions),
+		eventCollector:      eventCollector,
 	}
 	return instance
 }
@@ -106,6 +129,7 @@ func (i *Instance) DashboardHandler() http.Handler {
 			LogCollector:        i.logCollector,
 			HTTPClientCollector: i.httpClientCollector,
 			HTTPServerCollector: i.httpServerCollector,
+			EventCollector:      i.eventCollector,
 		},
 	)
 }

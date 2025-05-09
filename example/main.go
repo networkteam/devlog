@@ -52,11 +52,12 @@ func main() {
 	mux.HandleFunc("/http-client", func(w http.ResponseWriter, r *http.Request) {
 		logger := slog.With("component", "http", "handler", "/http-client")
 
-		logger.Debug("Requesting uselessfacts API")
+		logger.DebugContext(r.Context(), "Requesting uselessfacts API")
 
-		resp, err := httpClient.Get("https://uselessfacts.jsph.pl/api/v2/facts/random")
+		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://uselessfacts.jsph.pl/api/v2/facts/random", nil)
+		resp, err := httpClient.Do(req)
 		if err != nil {
-			logger.Error("Failed to get uselessfacts API", slog.Any("err", err.Error()))
+			logger.ErrorContext(r.Context(), "Failed to get uselessfacts API", slog.Any("err", err.Error()))
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("Failed to get uselessfacts API"))
 			return
@@ -64,7 +65,7 @@ func main() {
 		defer resp.Body.Close()
 		var fact uselessfactResponse
 		if err := json.NewDecoder(resp.Body).Decode(&fact); err != nil {
-			logger.Error("Failed to decode uselessfacts API response", slog.Any("err", err.Error()))
+			logger.ErrorContext(r.Context(), "Failed to decode uselessfacts API response", slog.Any("err", err.Error()))
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("Failed to decode uselessfacts API response"))
 			return
@@ -79,7 +80,7 @@ func main() {
 	mux.HandleFunc("/log", func(w http.ResponseWriter, r *http.Request) {
 		logger := slog.With("component", "http", "handler", "/log")
 
-		logger.Debug("Debug log from /log HTTP handler", slog.Group("request", slog.String("method", r.Method)))
+		logger.DebugContext(r.Context(), "Debug log from /log HTTP handler", slog.Group("request", slog.String("method", r.Method)))
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Log a thing"))

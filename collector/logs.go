@@ -9,14 +9,17 @@ import (
 )
 
 type LogCollector struct {
-	// Note: logs are hard-coded to slog.Record for now
-	buffer   *RingBuffer[slog.Record]
-	notifier *Notifier[slog.Record]
+	buffer         *RingBuffer[slog.Record]
+	notifier       *Notifier[slog.Record]
+	eventCollector *EventCollector
 }
 
-func (c *LogCollector) Collect(record slog.Record) {
+func (c *LogCollector) Collect(ctx context.Context, record slog.Record) {
 	c.buffer.Add(record)
 	c.notifier.Notify(record)
+	if c.eventCollector != nil {
+		c.eventCollector.CollectEvent(ctx, record)
+	}
 }
 
 func (c *LogCollector) Tail(n int) []slog.Record {
@@ -39,6 +42,9 @@ func DefaultLogOptions() LogOptions {
 type LogOptions struct {
 	// NotifierOptions are options for notification about new logs
 	NotifierOptions *NotifierOptions
+
+	// EventCollector is an optional event collector for collecting logs as grouped events
+	EventCollector *EventCollector
 }
 
 func NewLogCollectorWithOptions(capacity uint64, options LogOptions) *LogCollector {
@@ -48,8 +54,9 @@ func NewLogCollectorWithOptions(capacity uint64, options LogOptions) *LogCollect
 	}
 
 	return &LogCollector{
-		buffer:   NewRingBuffer[slog.Record](capacity),
-		notifier: NewNotifierWithOptions[slog.Record](notifierOptions),
+		buffer:         NewRingBuffer[slog.Record](capacity),
+		notifier:       NewNotifierWithOptions[slog.Record](notifierOptions),
+		eventCollector: options.EventCollector,
 	}
 }
 
@@ -106,7 +113,7 @@ func (h *SlogLogCollectorHandler) Handle(ctx context.Context, record slog.Record
 	}
 	newRecord.AddAttrs(attrs...)
 
-	h.collectLog(newRecord)
+	h.collector.Collect(ctx, newRecord)
 
 	return nil
 }
@@ -134,10 +141,6 @@ func (h *SlogLogCollectorHandler) WithGroup(name string) slog.Handler {
 		attrs:  h.attrs,
 		groups: append(h.groups, name),
 	}
-}
-
-func (h *SlogLogCollectorHandler) collectLog(record slog.Record) {
-	h.collector.Collect(record)
 }
 
 // Copied from github.com/samber/slog-mock
