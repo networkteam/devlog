@@ -16,7 +16,7 @@ const (
 
 // EventCollector is a collector for events that can be grouped
 type EventCollector struct {
-	buffer     *RingBuffer[Event]
+	buffer     *LookupRingBuffer[Event, string]
 	openGroups map[uuid.UUID]*Event
 	notifier   *Notifier[Event]
 
@@ -39,7 +39,7 @@ func NewEventCollectorWithOptions(capacity uint64, options EventOptions) *EventC
 	}
 
 	return &EventCollector{
-		buffer:     NewRingBuffer[Event](capacity),
+		buffer:     NewLookupRingBuffer[Event, string](capacity),
 		openGroups: make(map[uuid.UUID]*Event),
 		notifier:   NewNotifierWithOptions[Event](notifierOptions),
 	}
@@ -155,6 +155,10 @@ func (c *EventCollector) GetEvents(n uint64) []Event {
 	return c.buffer.GetRecords(n)
 }
 
+func (c *EventCollector) GetEvent(id uuid.UUID) (Event, bool) {
+	return c.buffer.Lookup(id.String())
+}
+
 // Subscribe returns a channel that receives notifications of new events
 func (c *EventCollector) Subscribe(ctx context.Context) <-chan Event {
 	return c.notifier.Subscribe(ctx)
@@ -177,4 +181,8 @@ type Event struct {
 
 	// Children is a slice of events that are children of this event
 	Children []Event
+}
+
+func (e Event) Identity() string {
+	return e.ID.String()
 }

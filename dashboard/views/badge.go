@@ -1,6 +1,9 @@
 package views
 
-import "strings"
+import (
+	"log/slog"
+	"strings"
+)
 
 type BadgeVariant string
 
@@ -45,4 +48,19 @@ func badgeClasses(props BadgeProps) string {
 	}
 
 	return strings.Join(classes, " ")
+}
+
+func logLevelToBadgeVariant(level slog.Level) BadgeVariant {
+	switch level {
+	case slog.LevelDebug:
+		return BadgeVariantSecondary
+	case slog.LevelInfo:
+		return BadgeVariantSuccess
+	case slog.LevelWarn:
+		return BadgeVariantWarning
+	case slog.LevelError:
+		return BadgeVariantError
+	default:
+		return BadgeVariantOutline
+	}
 }

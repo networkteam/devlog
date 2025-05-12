@@ -1,0 +1,176 @@
+package views
+
+import (
+    "log/slog"
+    "strconv"
+    "net/url"
+    "fmt"
+
+    "github.com/gofrs/uuid"
+
+    "github.com/networkteam/devlog/collector"
+)
+
+type EventListProps struct {
+    SelectedEventID *uuid.UUID
+    Events []collector.Event
+}
+
+templ EventList(props EventListProps) {
+    {{ trigger := "every 2s" }}
+    if props.Events == nil {
+        {{ trigger = "load" }}
+    }
+
+	<ul id="event-list" class="divide-y divide-neutral-300" hx-get="/_devlog/event-list?selected={props.SelectedEventID}" hx-swap="outerHTML" hx-trigger={trigger}>
+	    for _, event := range props.Events {
+            @EventListItem(event, props.SelectedEventID)
+		}
+	</ul>
+}
+
+templ EventListItem(event collector.Event, selectedEventID *uuid.UUID) {
+    switch event.Data.(type) {
+    case collector.HTTPRequest:
+        @HTTPRequestListItem(event, selectedEventID)
+    case collector.HTTPServerRequest:
+        @HTTPServerRequestListItem(event, selectedEventID)
+    case slog.Record:
+        @LogListItem(event, selectedEventID)
+	}
+}
+
+func isEventSelected(event collector.Event, selectedEventID *uuid.UUID) bool {
+    return selectedEventID != nil && event.ID == *selectedEventID
+}
+
+templ HTTPRequestListItem(event collector.Event, selectedEventID *uuid.UUID) {
+    {{ request := event.Data.(collector.HTTPRequest) }}
+    {{ parsedURL, _ := url.Parse(request.URL) }}
+    {{ isSelected := isEventSelected(event, selectedEventID) }}
+    <li>
+        <div
+            class={
+                "p-3 hover:bg-neutral-100 cursor-pointer transition-colors",
+                templ.KV("bg-blue-50", isSelected),
+            }
+            hx-get={fmt.Sprintf("/_devlog/event/%s", event.ID)}
+            hx-target="#event-details"
+            hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
+        >
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex gap-2">
+                    <div
+                        class={ badgeClasses(BadgeProps{
+                            Variant: BadgeVariantOutline,
+                        }) }
+                    >
+                        { request.Method }
+                    </div>
+                    <div
+                        class={ badgeClasses(BadgeProps{
+                            Variant: BadgeVariantSuccess,
+                        }) }
+                    >
+                        { strconv.Itoa(request.StatusCode) }
+                    </div>
+                </div>
+                <span class="text-xs text-neutral-500">
+                    { formatDurationSince(event.Start) }
+                </span>
+            </div>
+            <div class="truncate text-sm font-semibold">{ parsedURL.Path }</div>
+            <div class="text-xs text-neutral-500 mt-1">{ parsedURL.Host }</div>
+        </div>
+        if len(event.Children) > 0 {
+            <ul class="mt-2 ml-2 divide-y divide-neutral-300 border-l border-neutral-300">
+                for _, subEvent := range event.Children {
+                    @EventListItem(subEvent, selectedEventID)
+                }
+            </ul>
+        }
+    </li>
+}
+
+templ HTTPServerRequestListItem(event collector.Event, selectedEventID *uuid.UUID) {
+    {{ request := event.Data.(collector.HTTPServerRequest) }}
+    {{ isSelected := isEventSelected(event, selectedEventID) }}
+    <li>
+        <div
+            class={
+                "p-3 hover:bg-neutral-100 cursor-pointer transition-colors",
+                templ.KV("bg-blue-50", isSelected),
+            }
+            hx-get={fmt.Sprintf("/_devlog/event/%s", event.ID)}
+            hx-target="#event-details"
+            hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
+        >
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex gap-2">
+                    <div
+                        class={ badgeClasses(BadgeProps{
+                            Variant: BadgeVariantOutline,
+                        }) }
+                    >
+                        { request.Method }
+                    </div>
+                    <div
+                        class={ badgeClasses(BadgeProps{
+                            Variant: BadgeVariantSuccess,
+                        }) }
+                    >
+                        { strconv.Itoa(request.StatusCode) }
+                    </div>
+                </div>
+                <span class="text-xs text-neutral-500">
+                    { formatDurationSince(event.Start) }
+                </span>
+            </div>
+            <div class="truncate text-sm font-semibold">{ request.Path }</div>
+        </div>
+        if len(event.Children) > 0 {
+            <ul class="mt-2 ml-2 divide-y divide-neutral-300 border-l border-neutral-300">
+                for _, subEvent := range event.Children {
+                    @EventListItem(subEvent, selectedEventID)
+                }
+            </ul>
+        }
+    </li>
+}
+
+templ LogListItem(event collector.Event, selectedEventID *uuid.UUID) {
+    {{ record := event.Data.(slog.Record) }}
+    {{ isSelected := isEventSelected(event, selectedEventID) }}
+    <li
+        class={
+            "p-3 hover:bg-neutral-100 cursor-pointer transition-colors",
+            templ.KV("bg-blue-50", isSelected),
+        }
+        hx-get={fmt.Sprintf("/_devlog/event/%s", event.ID)}
+        hx-target="#event-details"
+        hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
+    >
+        <div class="flex items-center justify-between mb-1">
+            <div class="flex gap-2">
+                <div
+                    class={ badgeClasses(BadgeProps{
+                        Variant: logLevelToBadgeVariant(record.Level),
+                    }) }
+                >
+                    { record.Level }
+                </div>
+            </div>
+            <span class="text-xs text-neutral-500">
+                { formatDurationSince(event.Start) }
+            </span>
+        </div>
+        <div class="truncate text-sm font-semibold">{ record.Message }</div>
+        <div class="flex flex-row flex-wrap gap-x-2 mt-1">
+        for attr := range iterSlogAttrs(record) {
+            <div>
+                <span class="text-xs text-neutral-500">{ attr.Key }</span><span class="ml-0.5 text-xs text-neutral-700">{ attr.Value.String() }</span>
+            </div>
+        }
+        </div>
+    </li>
+}

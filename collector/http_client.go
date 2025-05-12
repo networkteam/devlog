@@ -145,7 +145,9 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 	if t.collector.eventCollector != nil {
 		newCtx := t.collector.eventCollector.StartEvent(req.Context())
-		defer t.collector.eventCollector.EndEvent(newCtx, httpReq)
+		defer func(req *HTTPRequest) {
+			t.collector.eventCollector.EndEvent(newCtx, *req)
+		}(&httpReq)
 
 		req = req.WithContext(newCtx)
 	}

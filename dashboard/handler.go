@@ -6,10 +6,12 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/gofrs/uuid"
 
 	"github.com/networkteam/devlog/collector"
 	"github.com/networkteam/devlog/dashboard/views"
@@ -43,6 +45,10 @@ func NewHandler(options HandlerOptions) *Handler {
 
 	// Mount handlers for each section
 	mux.HandleFunc("/", handler.root)
+	mux.HandleFunc("/event-list", handler.getEventList)
+	mux.HandleFunc("/event/{eventId}", handler.getEventDetails)
+
+	// Test routes
 	mux.HandleFunc("/events", handler.getEvents)
 	mux.HandleFunc("/logs", handler.getLogs)
 	mux.HandleFunc("/logs/events", handler.getLogsSSE)
@@ -60,7 +66,65 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
-	templ.Handler(views.Dashboard()).ServeHTTP(w, r)
+	idStr := r.URL.Query().Get("id")
+	var selectedEvent *collector.Event
+	if idStr != "" {
+		eventID, err := uuid.FromString(idStr)
+		if err != nil {
+			http.Error(w, "Invalid event id", http.StatusBadRequest)
+			return
+		}
+		event, exists := h.eventCollector.GetEvent(eventID)
+		if !exists {
+			http.Error(w, "Event not found", http.StatusNotFound)
+			return
+		}
+		selectedEvent = &event
+	}
+
+	templ.Handler(views.Dashboard(views.DashboardProps{
+		SelectedEvent: selectedEvent,
+	})).ServeHTTP(w, r)
+}
+
+func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
+	recentEvents := h.eventCollector.GetEvents(100)
+	slices.Reverse(recentEvents)
+
+	idStr := r.URL.Query().Get("id")
+	var selectedEventID *uuid.UUID
+	if idStr != "" {
+		eventID, err := uuid.FromString(idStr)
+		if err != nil {
+			http.Error(w, "Invalid event id", http.StatusBadRequest)
+			return
+		}
+		selectedEventID = &eventID
+	}
+
+	templ.Handler(views.EventList(views.EventListProps{
+		Events:          recentEvents,
+		SelectedEventID: selectedEventID,
+	})).ServeHTTP(w, r)
+}
+
+func (h *Handler) getEventDetails(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("eventId")
+	eventID, err := uuid.FromString(idStr)
+	if err != nil {
+		http.Error(w, "Invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	// TODO We need to handle nested events somehow
+
+	event, exists := h.eventCollector.GetEvent(eventID)
+	if !exists {
+		http.Error(w, "Event not found", http.StatusNotFound)
+		return
+	}
+
+	templ.Handler(views.EventDetailContainer(event)).ServeHTTP(w, r)
 }
 
 func (h *Handler) getEvents(w http.ResponseWriter, r *http.Request) {

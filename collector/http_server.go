@@ -175,7 +175,9 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 
 		if c.eventCollector != nil {
 			newCtx := c.eventCollector.StartEvent(r.Context())
-			defer c.eventCollector.EndEvent(newCtx, httpReq)
+			defer func(req *HTTPServerRequest) {
+				c.eventCollector.EndEvent(newCtx, *req)
+			}(&httpReq)
 
 			r = r.WithContext(newCtx)
 		}
@@ -189,6 +191,10 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 
 		// Capture response data
 		httpReq.StatusCode = crw.statusCode
+		if httpReq.StatusCode == 0 {
+			httpReq.StatusCode = http.StatusOK
+		}
+
 		httpReq.ResponseHeaders = crw.Header()
 		httpReq.ResponseBody = crw.body
 

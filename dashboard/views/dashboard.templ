@@ -1,7 +1,22 @@
 package views
 
-templ Dashboard() {
+import (
+    "github.com/networkteam/devlog/collector"
+)
+
+type DashboardProps struct {
+    SelectedEvent *collector.Event
+}
+
+templ Dashboard(props DashboardProps) {
+    {{ eventListProps := EventListProps{} }}
+    {{ details := EmptyDetails() }}
+    if props.SelectedEvent != nil {
+        {{ eventListProps.SelectedEventID = &props.SelectedEvent.ID }}
+        {{ details = EventDetailContainer(*props.SelectedEvent) }}
+    }
+
 	@Layout() {
-		@SplitLayout(LogList(), LogDetails())
+		@SplitLayout(EventList(eventListProps), details)
 	}
 }

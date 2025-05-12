@@ -1,43 +1,5 @@
 package views
 
-templ LogList() {
-	<ul class="divide-y divide-neutral-300">
-		@LogListItem()
-		@LogListItem()
-		@LogListItem()
-		@LogListItem()
-		@LogListItem()
-	</ul>
-}
-
-templ LogListItem() {
-	<li class="p-3 hover:bg-neutral-100 cursor-pointer transition-colors">
-		<div class="flex items-center justify-between mb-1">
-			<div class="flex gap-2">
-				<div
-					class={ badgeClasses(BadgeProps{
-                        Variant: BadgeVariantOutline,
-                    }) }
-				>
-					GET
-				</div>
-				<div
-					class={ badgeClasses(BadgeProps{
-                        Variant: BadgeVariantSuccess,
-                    }) }
-				>
-					200
-				</div>
-			</div>
-			<span class="text-xs text-neutral-500">
-				2 minutes ago
-			</span>
-		</div>
-		<div class="truncate text-sm font-semibold">/api/users</div>
-		<div class="text-xs text-neutral-500 mt-1">localhost:8080</div>
-	</li>
-}
-
 templ LogDetails() {
 	<div class="p-4">
 		<div class="mb-6">
