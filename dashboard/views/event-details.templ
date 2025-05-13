@@ -14,12 +14,12 @@ import (
 // BodyContent renders a truncated body with a maximum length and syntax highlighting
 templ BodyContent(content string, contentType string, maxLength int) {
     if len(content) > maxLength {
-        <div class="bg-neutral-50 p-3 rounded border border-neutral-200 font-mono text-sm">
+        <div class="bg p-3 rounded border border-neutral-200 font-mono text-sm">
             <pre class="whitespace-pre-wrap break-words">{ content[:maxLength] }...</pre>
         </div>
     } else {
-        <div class="bg-neutral-50 p-3 rounded border border-neutral-200 font-mono text-sm">
-            @templ.Raw(highlightContent(content, contentType))
+        <div class="bg p-3 rounded border border-neutral-200 font-mono text-sm">
+            @highlightContent(content, contentType)
         </div>
     }
 }

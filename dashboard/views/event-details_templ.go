@@ -42,7 +42,7 @@ func BodyContent(content string, contentType string, maxLength int) templ.Compon
 		}
 		ctx = templ.ClearChildren(ctx)
 		if len(content) > maxLength {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"bg-neutral-50 p-3 rounded border border-neutral-200 font-mono text-sm\"><pre class=\"whitespace-pre-wrap break-words\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"bg p-3 rounded border border-neutral-200 font-mono text-sm\"><pre class=\"whitespace-pre-wrap break-words\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -60,11 +60,11 @@ func BodyContent(content string, contentType string, maxLength int) templ.Compon
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"bg-neutral-50 p-3 rounded border border-neutral-200 font-mono text-sm\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"bg p-3 rounded border border-neutral-200 font-mono text-sm\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.Raw(highlightContent(content, contentType)).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = highlightContent(content, contentType).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
