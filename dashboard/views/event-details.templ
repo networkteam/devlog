@@ -11,6 +11,19 @@ import (
     "github.com/networkteam/devlog/collector"
 )
 
+// BodyContent renders a truncated body with a maximum length and syntax highlighting
+templ BodyContent(content string, contentType string, maxLength int) {
+    if len(content) > maxLength {
+        <div class="bg-neutral-50 p-3 rounded border border-neutral-200 font-mono text-sm">
+            <pre class="whitespace-pre-wrap break-words">{ content[:maxLength] }...</pre>
+        </div>
+    } else {
+        <div class="bg-neutral-50 p-3 rounded border border-neutral-200 font-mono text-sm">
+            @templ.Raw(highlightContent(content, contentType))
+        </div>
+    }
+}
+
 // Empty detail state
 templ EmptyDetails() {
     <div class="flex items-center justify-center h-full p-8 text-neutral-400">
@@ -115,17 +128,12 @@ templ HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) 
             </div>
         </div>
 
-        <!-- Tabs for Request/Response -->
-        <div class="mb-4">
-            <div class="border-b border-neutral-200">
-                <nav class="flex -mb-px" role="tablist">
-                    <button class="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">Request</button>
-                    <button class="px-4 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-700">Response</button>
-                </nav>
-            </div>
-
+        <!-- Request Section -->
+        <div class="mb-6">
+            <h3 class="text-sm font-semibold mb-2">Request</h3>
+            
             <!-- Request Headers -->
-            <div class="mt-4">
+            <div class="mb-4">
                 <h4 class="text-sm font-semibold mb-2">Headers</h4>
                 <div class="bg-neutral-50 rounded border border-neutral-200 overflow-hidden">
                     <table class="w-full text-sm">
@@ -149,11 +157,47 @@ templ HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) 
 
             <!-- Request Body -->
             if request.RequestBody != nil && request.RequestBody.Size() > 0 {
-                <div class="mt-4">
+                <div class="mb-4">
                     <h4 class="text-sm font-semibold mb-2">Body</h4>
-                    <div class="bg-neutral-50 p-3 rounded border border-neutral-200 font-mono text-sm overflow-auto max-h-96">
-                        <pre>{ request.RequestBody.String() }</pre>
+                    @BodyContent(request.RequestBody.String(), request.RequestHeaders.Get("Content-Type"), 10000)
+                </div>
+            }
+        </div>
+
+        <!-- Response Section -->
+        <div class="mb-6">
+            <h3 class="text-sm font-semibold mb-2">Response</h3>
+            
+            <!-- Response Headers -->
+            if len(request.ResponseHeaders) > 0 {
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold mb-2">Headers</h4>
+                    <div class="bg-neutral-50 rounded border border-neutral-200 overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-neutral-100">
+                                    <th class="text-left p-2 font-medium">Name</th>
+                                    <th class="text-left p-2 font-medium">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                for key, values := range request.ResponseHeaders {
+                                    <tr class="border-t border-neutral-200">
+                                        <td class="p-2 align-top font-mono">{ key }</td>
+                                        <td class="p-2 font-mono break-all">{ strings.Join(values, ", ") }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
                     </div>
+                </div>
+            }
+
+            <!-- Response Body -->
+            if request.ResponseBody != nil && request.ResponseBody.Size() > 0 {
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold mb-2">Body</h4>
+                    @BodyContent(request.ResponseBody.String(), request.ResponseHeaders.Get("Content-Type"), 10000)
                 </div>
             }
         </div>
@@ -211,17 +255,12 @@ templ HTTPServerRequestDetails(event *collector.Event, request collector.HTTPSer
             </div>
         </div>
 
-        <!-- Tabs for Request/Response -->
-        <div class="mb-4">
-            <div class="border-b border-neutral-200">
-                <nav class="flex -mb-px" role="tablist">
-                    <button class="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">Request</button>
-                    <button class="px-4 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-700">Response</button>
-                </nav>
-            </div>
-
+        <!-- Request Section -->
+        <div class="mb-6">
+            <h3 class="text-sm font-semibold mb-2">Request</h3>
+            
             <!-- Request Headers -->
-            <div class="mt-4">
+            <div class="mb-4">
                 <h4 class="text-sm font-semibold mb-2">Headers</h4>
                 <div class="bg-neutral-50 rounded border border-neutral-200 overflow-hidden">
                     <table class="w-full text-sm">
@@ -245,11 +284,47 @@ templ HTTPServerRequestDetails(event *collector.Event, request collector.HTTPSer
 
             <!-- Request Body -->
             if request.RequestBody != nil && request.RequestBody.Size() > 0 {
-                <div class="mt-4">
+                <div class="mb-4">
                     <h4 class="text-sm font-semibold mb-2">Body</h4>
-                    <div class="bg-neutral-50 p-3 rounded border border-neutral-200 font-mono text-sm overflow-auto max-h-96">
-                        <pre>{ request.RequestBody.String() }</pre>
+                    @BodyContent(request.RequestBody.String(), request.RequestHeaders.Get("Content-Type"), 10000)
+                </div>
+            }
+        </div>
+
+        <!-- Response Section -->
+        <div class="mb-6">
+            <h3 class="text-sm font-semibold mb-2">Response</h3>
+            
+            <!-- Response Headers -->
+            if len(request.ResponseHeaders) > 0 {
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold mb-2">Headers</h4>
+                    <div class="bg-neutral-50 rounded border border-neutral-200 overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-neutral-100">
+                                    <th class="text-left p-2 font-medium">Name</th>
+                                    <th class="text-left p-2 font-medium">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                for key, values := range request.ResponseHeaders {
+                                    <tr class="border-t border-neutral-200">
+                                        <td class="p-2 align-top font-mono">{ key }</td>
+                                        <td class="p-2 font-mono break-all">{ strings.Join(values, ", ") }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
                     </div>
+                </div>
+            }
+
+            <!-- Response Body -->
+            if request.ResponseBody != nil && request.ResponseBody.Size() > 0 {
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold mb-2">Body</h4>
+                    @BodyContent(request.ResponseBody.String(), request.ResponseHeaders.Get("Content-Type"), 10000)
                 </div>
             }
         </div>

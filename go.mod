@@ -4,6 +4,7 @@ go 1.23.8
 
 require (
 	github.com/a-h/templ v0.3.865
+	github.com/alecthomas/chroma/v2 v2.17.2
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/networkteam/refresh v1.15.0
 	github.com/samber/lo v1.50.0
@@ -17,6 +18,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cli/browser v1.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
