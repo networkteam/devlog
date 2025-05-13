@@ -46,10 +46,10 @@ func NewHandler(options HandlerOptions) *Handler {
 	mux.HandleFunc("/", handler.root)
 	mux.HandleFunc("/event-list", handler.getEventList)
 	mux.HandleFunc("/event/{eventId}", handler.getEventDetails)
+	mux.HandleFunc("/events-sse", handler.getEventsSSE)
 
 	// Test routes
 	mux.HandleFunc("/logs", handler.getLogs)
-	mux.HandleFunc("/logs/events", handler.getLogsSSE)
 	mux.HandleFunc("/http-client-requests", handler.getHTTPClientRequests)
 	mux.HandleFunc("/http-server-requests", handler.getHTTPServerRequests)
 
@@ -71,30 +71,31 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 		}
 		event, exists := h.eventCollector.GetEvent(eventID)
 		if !exists {
-			http.Error(w, "Event not found", http.StatusNotFound)
+			http.Redirect(w, r, "/_devlog/", http.StatusTemporaryRedirect) // TODO Build correct URL
 			return
+		} else {
+			selectedEvent = event
 		}
-		selectedEvent = event
 	}
+
+	recentEvents := h.loadRecentEvents()
 
 	templ.Handler(views.Dashboard(views.DashboardProps{
 		SelectedEvent: selectedEvent,
+		Events:        recentEvents,
 	})).ServeHTTP(w, r)
 }
 
 func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
-	recentEvents := h.eventCollector.GetEvents(100)
-	slices.Reverse(recentEvents)
+	recentEvents := h.loadRecentEvents()
 
-	idStr := r.URL.Query().Get("id")
+	selectedStr := r.URL.Query().Get("selected")
 	var selectedEventID *uuid.UUID
-	if idStr != "" {
-		eventID, err := uuid.FromString(idStr)
-		if err != nil {
-			http.Error(w, "Invalid event id", http.StatusBadRequest)
-			return
+	if selectedStr != "" {
+		eventID, err := uuid.FromString(selectedStr)
+		if err == nil {
+			selectedEventID = &eventID
 		}
-		selectedEventID = &eventID
 	}
 
 	templ.Handler(views.EventList(views.EventListProps{
@@ -140,8 +141,8 @@ func formatLogAsHTML(log slog.Record) string {
 	return "<li>" + log.Time.Format(time.RFC3339) + " " + html.EscapeString(log.Message) + "</li>"
 }
 
-// getLogsSSE handles SSE connections for real-time log updates
-func (h *Handler) getLogsSSE(w http.ResponseWriter, r *http.Request) {
+// getEventsSSE handles SSE connections for real-time log updates
+func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -159,7 +160,7 @@ func (h *Handler) getLogsSSE(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Create a notification channel for new logs
-	logCh := h.logCollector.Subscribe(ctx)
+	eventCh := h.eventCollector.Subscribe(ctx)
 
 	// Send a keep-alive message initially to ensure the connection is established
 	fmt.Fprintf(w, "event: keepalive\ndata: connected\n\n")
@@ -170,16 +171,19 @@ func (h *Handler) getLogsSSE(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return // Client disconnected
-		case log, ok := <-logCh:
+		case event, ok := <-eventCh:
 			if !ok {
 				return // Channel closed
 			}
 
-			// Format log as HTML
-			logHTML := formatLogAsHTML(log)
-
 			// Send as SSE event
-			fmt.Fprintf(w, "data: %s\n\n", logHTML)
+			fmt.Fprintf(w, "event: new-event\n")
+			fmt.Fprintf(w, "data: ")
+
+			views.EventListItem(&event, nil).Render(ctx, w)
+
+			fmt.Fprintf(w, "\n\n")
+
 			w.(http.Flusher).Flush()
 		}
 	}
@@ -243,6 +247,13 @@ func (h *Handler) getHTTPServerRequests(w http.ResponseWriter, r *http.Request) 
 			"<strong>Response:</strong> <pre>" + responseBody + "</pre></li>"))
 	}
 	_, _ = w.Write([]byte("</ul></body></html>"))
+}
+
+func (h *Handler) loadRecentEvents() []*collector.Event {
+	recentEvents := h.eventCollector.GetEvents(100)
+	slices.Reverse(recentEvents)
+
+	return recentEvents
 }
 
 // Helper functions

@@ -17,12 +17,14 @@ type EventListProps struct {
 }
 
 templ EventList(props EventListProps) {
-    {{ trigger := "every 2s" }}
-    if props.Events == nil {
-        {{ trigger = "load" }}
-    }
-
-	<ul id="event-list" class="divide-y divide-neutral-300" hx-get="/_devlog/event-list?selected={props.SelectedEventID}" hx-swap="outerHTML" hx-trigger={trigger}>
+	<ul
+	    id="event-list"
+	    class="divide-y divide-neutral-300"
+        hx-ext="sse"
+        sse-connect={"/_devlog/events-sse"}
+        sse-swap="new-event"
+        hx-swap="afterbegin"
+    >
 	    for _, event := range props.Events {
             @EventListItem(event, props.SelectedEventID)
 		}
@@ -44,20 +46,28 @@ func isEventSelected(event *collector.Event, selectedEventID *uuid.UUID) bool {
     return selectedEventID != nil && event.ID == *selectedEventID
 }
 
+templ linkListItem(event *collector.Event, selectedEventID *uuid.UUID) {
+    {{ isSelected := isEventSelected(event, selectedEventID) }}
+    <div
+        id={fmt.Sprintf("event-%s-item", event.ID)}
+        class={
+            "p-3 hover:bg-neutral-100 cursor-pointer transition-colors [.selected]:bg-blue-50",
+            templ.KV("selected", isSelected),
+        }
+        hx-get={fmt.Sprintf("/_devlog/event/%s", event.ID)}
+        hx-target="#event-details"
+        hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
+        hx-swap="outerHTML"
+    >
+        { children... }
+    </div>
+}
+
 templ HTTPRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     {{ request := event.Data.(collector.HTTPRequest) }}
     {{ parsedURL, _ := url.Parse(request.URL) }}
-    {{ isSelected := isEventSelected(event, selectedEventID) }}
     <li>
-        <div
-            class={
-                "p-3 hover:bg-neutral-100 cursor-pointer transition-colors",
-                templ.KV("bg-blue-50", isSelected),
-            }
-            hx-get={fmt.Sprintf("/_devlog/event/%s", event.ID)}
-            hx-target="#event-details"
-            hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
-        >
+        @linkListItem(event, selectedEventID) {
             <div class="flex items-center justify-between mb-1">
                 <div class="flex gap-2">
                     <div
@@ -81,9 +91,9 @@ templ HTTPRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
             </div>
             <div class="truncate text-sm font-semibold">{ parsedURL.Path }</div>
             <div class="text-xs text-neutral-500 mt-1">{ parsedURL.Host }</div>
-        </div>
+        }
         if len(event.Children) > 0 {
-            <ul class="mt-2 ml-2 divide-y divide-neutral-300 border-l border-neutral-300">
+            <ul class="ml-2 divide-y divide-neutral-300 border-l border-neutral-300">
                 for _, subEvent := range event.Children {
                     @EventListItem(subEvent, selectedEventID)
                 }
@@ -94,17 +104,8 @@ templ HTTPRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
 
 templ HTTPServerRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     {{ request := event.Data.(collector.HTTPServerRequest) }}
-    {{ isSelected := isEventSelected(event, selectedEventID) }}
     <li>
-        <div
-            class={
-                "p-3 hover:bg-neutral-100 cursor-pointer transition-colors",
-                templ.KV("bg-blue-50", isSelected),
-            }
-            hx-get={fmt.Sprintf("/_devlog/event/%s", event.ID)}
-            hx-target="#event-details"
-            hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
-        >
+        @linkListItem(event, selectedEventID) {
             <div class="flex items-center justify-between mb-1">
                 <div class="flex gap-2">
                     <div
@@ -127,7 +128,7 @@ templ HTTPServerRequestListItem(event *collector.Event, selectedEventID *uuid.UU
                 </span>
             </div>
             <div class="truncate text-sm font-semibold">{ request.Path }</div>
-        </div>
+        }
         if len(event.Children) > 0 {
             <ul class="mt-2 ml-2 divide-y divide-neutral-300 border-l border-neutral-300">
                 for _, subEvent := range event.Children {
@@ -140,37 +141,30 @@ templ HTTPServerRequestListItem(event *collector.Event, selectedEventID *uuid.UU
 
 templ LogListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     {{ record := event.Data.(slog.Record) }}
-    {{ isSelected := isEventSelected(event, selectedEventID) }}
-    <li
-        class={
-            "p-3 hover:bg-neutral-100 cursor-pointer transition-colors",
-            templ.KV("bg-blue-50", isSelected),
-        }
-        hx-get={fmt.Sprintf("/_devlog/event/%s", event.ID)}
-        hx-target="#event-details"
-        hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
-    >
-        <div class="flex items-center justify-between mb-1">
-            <div class="flex gap-2">
-                <div
-                    class={ badgeClasses(BadgeProps{
-                        Variant: logLevelToBadgeVariant(record.Level),
-                    }) }
-                >
-                    { record.Level }
+    <li>
+        @linkListItem(event, selectedEventID) {
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex gap-2">
+                    <div
+                        class={ badgeClasses(BadgeProps{
+                            Variant: logLevelToBadgeVariant(record.Level),
+                        }) }
+                    >
+                        { record.Level }
+                    </div>
                 </div>
+                <span class="text-xs text-neutral-500">
+                    { formatDurationSince(event.Start) }
+                </span>
             </div>
-            <span class="text-xs text-neutral-500">
-                { formatDurationSince(event.Start) }
-            </span>
-        </div>
-        <div class="truncate text-sm font-semibold">{ record.Message }</div>
-        <div class="flex flex-row flex-wrap gap-x-2 mt-1">
-        for attr := range iterSlogAttrs(record) {
-            <div>
-                <span class="text-xs text-neutral-500">{ attr.Key }</span><span class="ml-0.5 text-xs text-neutral-700">{ attr.Value.String() }</span>
+            <div class="truncate text-sm font-semibold">{ record.Message }</div>
+            <div class="flex flex-row flex-wrap gap-x-2 mt-1">
+            for attr := range iterSlogAttrs(record) {
+                <div>
+                    <span class="text-xs text-neutral-500">{ attr.Key }</span><span class="ml-0.5 text-xs text-neutral-700">{ attr.Value.String() }</span>
+                </div>
+            }
             </div>
         }
-        </div>
     </li>
 }

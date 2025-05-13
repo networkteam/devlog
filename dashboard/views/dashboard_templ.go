@@ -14,6 +14,7 @@ import (
 
 type DashboardProps struct {
 	SelectedEvent *collector.Event
+	Events        []*collector.Event
 }
 
 func Dashboard(props DashboardProps) templ.Component {
@@ -37,11 +38,9 @@ func Dashboard(props DashboardProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		eventListProps := EventListProps{}
-		details := EmptyDetails()
+		eventListProps := EventListProps{Events: props.Events}
 		if props.SelectedEvent != nil {
 			eventListProps.SelectedEventID = &props.SelectedEvent.ID
-			details = EventDetailContainer(props.SelectedEvent)
 		}
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -55,7 +54,7 @@ func Dashboard(props DashboardProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = SplitLayout(EventList(eventListProps), details).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = SplitLayout(EventList(eventListProps), EventDetailContainer(props.SelectedEvent)).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

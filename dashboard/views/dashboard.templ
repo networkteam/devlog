@@ -6,17 +6,16 @@ import (
 
 type DashboardProps struct {
     SelectedEvent *collector.Event
+    Events []*collector.Event
 }
 
 templ Dashboard(props DashboardProps) {
-    {{ eventListProps := EventListProps{} }}
-    {{ details := EmptyDetails() }}
+    {{ eventListProps := EventListProps{Events: props.Events} }}
     if props.SelectedEvent != nil {
         {{ eventListProps.SelectedEventID = &props.SelectedEvent.ID }}
-        {{ details = EventDetailContainer(props.SelectedEvent) }}
     }
 
 	@Layout() {
-		@SplitLayout(EventList(eventListProps), details)
+		@SplitLayout(EventList(eventListProps), EventDetailContainer(props.SelectedEvent))
 	}
 }
