@@ -22,14 +22,13 @@ templ EventList(props EventListProps) {
 	    id="event-list"
 	    class="divide-y divide-neutral-300"
         hx-ext="sse"
-        sse-connect={"/_devlog/events-sse"}
+        sse-connect={fmt.Sprintf("%s/events-sse", MustGetHandlerOptions(ctx).PathPrefix)}
         sse-swap="new-event"
         hx-swap="afterbegin"
         data-truncate-after={ props.TruncateAfter }
         hx-on:htmx:after-swap="
             // Limit number of elements in list
             const limit = this.dataset.truncateAfter;
-            console.log('Limit to', limit);
             const items = this.querySelectorAll('& > li');
             if (items.length > limit) {
                 const itemsToRemove = items.length - limit;
@@ -69,7 +68,7 @@ templ linkListItem(event *collector.Event, selectedEventID *uuid.UUID) {
             "p-3 hover:bg-neutral-100 cursor-pointer transition-colors [.selected]:bg-blue-50",
             templ.KV("selected", isSelected),
         }
-        hx-get={fmt.Sprintf("/_devlog/event/%s", event.ID)}
+        hx-get={fmt.Sprintf("%s/event/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID)}
         hx-target="#event-details"
         hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
         hx-swap="outerHTML"

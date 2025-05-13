@@ -22,6 +22,8 @@ type Handler struct {
 	httpServerCollector *collector.HTTPServerCollector
 	eventCollector      *collector.EventCollector
 
+	pathPrefix string
+
 	mux http.Handler
 }
 
@@ -30,6 +32,9 @@ type HandlerOptions struct {
 	HTTPClientCollector *collector.HTTPClientCollector
 	HTTPServerCollector *collector.HTTPServerCollector
 	EventCollector      *collector.EventCollector
+
+	// PathPrefix where the Handler is mounted (e.g. "/_devlog"), can be left empty if the Handler is at the root ("/").
+	PathPrefix string
 }
 
 func NewHandler(options HandlerOptions) *Handler {
@@ -39,7 +44,10 @@ func NewHandler(options HandlerOptions) *Handler {
 		httpClientCollector: options.HTTPClientCollector,
 		httpServerCollector: options.HTTPServerCollector,
 		eventCollector:      options.EventCollector,
-		mux:                 mux,
+
+		pathPrefix: options.PathPrefix,
+
+		mux: setHandlerOptions(options, mux),
 	}
 
 	// Mount handlers for each section
@@ -60,6 +68,18 @@ func NewHandler(options HandlerOptions) *Handler {
 	return handler
 }
 
+func setHandlerOptions(options HandlerOptions, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		ctx = views.WithHandlerOptions(ctx, views.HandlerOptions{
+			PathPrefix: options.PathPrefix,
+		})
+		r = r.WithContext(ctx)
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
@@ -75,7 +95,7 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 		}
 		event, exists := h.eventCollector.GetEvent(eventID)
 		if !exists {
-			http.Redirect(w, r, "/_devlog/", http.StatusTemporaryRedirect) // TODO Build correct URL
+			http.Redirect(w, r, fmt.Sprintf("%s/", h.pathPrefix), http.StatusTemporaryRedirect) // TODO Build correct URL
 			return
 		} else {
 			selectedEvent = event

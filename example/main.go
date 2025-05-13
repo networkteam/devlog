@@ -95,7 +95,8 @@ func main() {
 
 	// 5. Mount devlog dashboard
 
-	outerMux.Handle("/_devlog/", http.StripPrefix("/_devlog", dlog.DashboardHandler()))
+	// Mount under path prefix /_devlog, so we handle the dashboard handler under this path, strip the prefix, so dashboard routes match and inform it about the path prefix to render correct URLs
+	outerMux.Handle("/_devlog/", http.StripPrefix("/_devlog", dlog.DashboardHandler("/_devlog")))
 
 	// Add a health check endpoint for refresh
 

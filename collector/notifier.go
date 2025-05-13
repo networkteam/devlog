@@ -2,7 +2,6 @@ package collector
 
 import (
 	"context"
-	"fmt"
 	"sync"
 )
 
@@ -79,8 +78,6 @@ func (n *Notifier[T]) Subscribe(ctx context.Context) <-chan T {
 		n.Unsubscribe(ch)
 	}()
 
-	fmt.Println("Subscribed to notifier")
-
 	return ch
 }
 
@@ -94,8 +91,6 @@ func (n *Notifier[T]) Unsubscribe(ch <-chan T) {
 		delete(n.subscribers, ch)
 		close(realCh)
 	}
-
-	fmt.Println("Unsubscribed from notifier")
 }
 
 // Notify sends a notification to all subscribers

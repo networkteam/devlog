@@ -83,3 +83,30 @@ func chromaStyles() templ.Component {
 		return err
 	})
 }
+
+type HandlerOptions struct {
+	PathPrefix string
+}
+
+// Context key for HandlerOptions
+type handlerOptionsKey struct{}
+
+// SetHandlerOptions adds HandlerOptions to the context
+func WithHandlerOptions(ctx context.Context, opts HandlerOptions) context.Context {
+	return context.WithValue(ctx, handlerOptionsKey{}, opts)
+}
+
+// GetHandlerOptions retrieves HandlerOptions from the context
+func GetHandlerOptions(ctx context.Context) (HandlerOptions, bool) {
+	opts, ok := ctx.Value(handlerOptionsKey{}).(HandlerOptions)
+	return opts, ok
+}
+
+// MustGetHandlerOptions retrieves HandlerOptions from the context or panics if not found
+func MustGetHandlerOptions(ctx context.Context) HandlerOptions {
+	opts, ok := GetHandlerOptions(ctx)
+	if !ok {
+		panic("HandlerOptions not found in context")
+	}
+	return opts
+}

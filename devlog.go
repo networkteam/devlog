@@ -123,13 +123,15 @@ func (i *Instance) CollectHTTPServer(handler http.Handler) http.Handler {
 	return i.httpServerCollector.Middleware(handler)
 }
 
-func (i *Instance) DashboardHandler() http.Handler {
+func (i *Instance) DashboardHandler(pathPrefix string) http.Handler {
 	return dashboard.NewHandler(
 		dashboard.HandlerOptions{
 			LogCollector:        i.logCollector,
 			HTTPClientCollector: i.httpClientCollector,
 			HTTPServerCollector: i.httpServerCollector,
 			EventCollector:      i.eventCollector,
+
+			PathPrefix: pathPrefix,
 		},
 	)
 }
