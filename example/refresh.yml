@@ -10,6 +10,7 @@ ignored_folders:
 included_extensions:
   - .go
   - .txt
+  - .css
 build_target_path: "."
 build_path: ./tmp/
 build_flags: [ ]

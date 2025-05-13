@@ -11,3 +11,5 @@ processes:
     command: go run github.com/a-h/templ/cmd/templ generate --watch
     availability:
       restart: "always"
+  tailwindcss:
+    command: tailwindcss -i dashboard/styles/main.css -o dashboard/static/main.css --watch=always

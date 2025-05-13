@@ -52,6 +52,54 @@
           "store_path": "/nix/store/gbl0s1x83fprsrrnrz169vi11693qbg9-go-1.23.8"
         }
       }
+    },
+    "tailwindcss_4@latest": {
+      "last_modified": "2025-04-17T05:47:26Z",
+      "resolved": "github:NixOS/nixpkgs/ebe4301cbd8f81c4f8d3244b3632338bbeb6d49c#tailwindcss_4",
+      "source": "devbox-search",
+      "version": "4.1.4",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/59q3zchrszkhxipqdcvrpq9633yjkn5s-tailwindcss_4-4.1.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/59q3zchrszkhxipqdcvrpq9633yjkn5s-tailwindcss_4-4.1.4"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/1wll0rj97v4p61830sisfp7hxq3h5v54-tailwindcss_4-4.1.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/1wll0rj97v4p61830sisfp7hxq3h5v54-tailwindcss_4-4.1.4"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/yq8lcwm1s73vrki16rm62wbisncldg4h-tailwindcss_4-4.1.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/yq8lcwm1s73vrki16rm62wbisncldg4h-tailwindcss_4-4.1.4"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/x9b0mny956i362085fgzld3wqsxibkky-tailwindcss_4-4.1.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/x9b0mny956i362085fgzld3wqsxibkky-tailwindcss_4-4.1.4"
+        }
+      }
     }
   }
 }
