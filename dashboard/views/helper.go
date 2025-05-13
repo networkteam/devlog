@@ -42,10 +42,7 @@ func highlightContent(content string, contentType string) templ.Component {
 
 		lexer := lexers.MatchMimeType(contentType)
 		if lexer == nil {
-			fmt.Printf("DEBUG: mime type not matched: %q\n", contentType)
 			lexer = lexers.Fallback
-		} else {
-			fmt.Printf("DEBUG: mime type matched lexer: %q\n", lexer.Config().Name)
 		}
 
 		formatter, style := chromaFormatterAndStyle()

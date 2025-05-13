@@ -158,7 +158,17 @@ templ HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) 
             <!-- Request Body -->
             if request.RequestBody != nil && request.RequestBody.Size() > 0 {
                 <div class="mb-4">
-                    <h4 class="text-sm font-semibold mb-2">Body</h4>
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-sm font-semibold">Body</h4>
+                        <a
+                            href={ templ.SafeURL(fmt.Sprintf("/_devlog/download/request-body/%s", event.ID)) }
+                            class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            download
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Download
+                        </a>
+                    </div>
                     @BodyContent(request.RequestBody.String(), request.RequestHeaders.Get("Content-Type"), 10000)
                 </div>
             }
@@ -196,7 +206,17 @@ templ HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) 
             <!-- Response Body -->
             if request.ResponseBody != nil && request.ResponseBody.Size() > 0 {
                 <div class="mb-4">
-                    <h4 class="text-sm font-semibold mb-2">Body</h4>
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-sm font-semibold">Body</h4>
+                        <a
+                            href={ templ.SafeURL(fmt.Sprintf("/_devlog/download/response-body/%s", event.ID)) }
+                            class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            download
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Download
+                        </a>
+                    </div>
                     @BodyContent(request.ResponseBody.String(), request.ResponseHeaders.Get("Content-Type"), 10000)
                 </div>
             }
@@ -285,7 +305,17 @@ templ HTTPServerRequestDetails(event *collector.Event, request collector.HTTPSer
             <!-- Request Body -->
             if request.RequestBody != nil && request.RequestBody.Size() > 0 {
                 <div class="mb-4">
-                    <h4 class="text-sm font-semibold mb-2">Body</h4>
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-sm font-semibold">Body</h4>
+                        <a
+                            href={ templ.SafeURL(fmt.Sprintf("/_devlog/download/request-body/%s", event.ID)) }
+                            class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            download
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Download
+                        </a>
+                    </div>
                     @BodyContent(request.RequestBody.String(), request.RequestHeaders.Get("Content-Type"), 10000)
                 </div>
             }
@@ -323,7 +353,17 @@ templ HTTPServerRequestDetails(event *collector.Event, request collector.HTTPSer
             <!-- Response Body -->
             if request.ResponseBody != nil && request.ResponseBody.Size() > 0 {
                 <div class="mb-4">
-                    <h4 class="text-sm font-semibold mb-2">Body</h4>
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-sm font-semibold">Body</h4>
+                        <a
+                            href={ templ.SafeURL(fmt.Sprintf("/_devlog/download/response-body/%s", event.ID)) }
+                            class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            download
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Download
+                        </a>
+                    </div>
                     @BodyContent(request.ResponseBody.String(), request.ResponseHeaders.Get("Content-Type"), 10000)
                 </div>
             }

@@ -48,6 +48,10 @@ func NewHandler(options HandlerOptions) *Handler {
 	mux.HandleFunc("/event/{eventId}", handler.getEventDetails)
 	mux.HandleFunc("/events-sse", handler.getEventsSSE)
 
+	// Download handlers
+	mux.HandleFunc("/download/request-body/{eventId}", handler.downloadRequestBody)
+	mux.HandleFunc("/download/response-body/{eventId}", handler.downloadResponseBody)
+
 	// Test routes
 	mux.HandleFunc("/logs", handler.getLogs)
 	mux.HandleFunc("/http-client-requests", handler.getHTTPClientRequests)
@@ -289,4 +293,100 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// downloadRequestBody handles downloading the request body for an event
+func (h *Handler) downloadRequestBody(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("eventId")
+	eventID, err := uuid.FromString(idStr)
+	if err != nil {
+		http.Error(w, "Invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	event, exists := h.eventCollector.GetEvent(eventID)
+	if !exists {
+		http.Error(w, "Event not found", http.StatusNotFound)
+		return
+	}
+
+	var body []byte
+	var contentType string
+
+	switch data := event.Data.(type) {
+	case collector.HTTPRequest:
+		if data.RequestBody == nil {
+			http.Error(w, "No request body available", http.StatusNotFound)
+			return
+		}
+		body = data.RequestBody.Bytes()
+		contentType = data.RequestHeaders.Get("Content-Type")
+	case collector.HTTPServerRequest:
+		if data.RequestBody == nil {
+			http.Error(w, "No request body available", http.StatusNotFound)
+			return
+		}
+		body = data.RequestBody.Bytes()
+		contentType = data.RequestHeaders.Get("Content-Type")
+	default:
+		http.Error(w, "Event type does not have a request body", http.StatusBadRequest)
+		return
+	}
+
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=request-body-%s", eventID))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	w.Write(body)
+}
+
+// downloadResponseBody handles downloading the response body for an event
+func (h *Handler) downloadResponseBody(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("eventId")
+	eventID, err := uuid.FromString(idStr)
+	if err != nil {
+		http.Error(w, "Invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	event, exists := h.eventCollector.GetEvent(eventID)
+	if !exists {
+		http.Error(w, "Event not found", http.StatusNotFound)
+		return
+	}
+
+	var body []byte
+	var contentType string
+
+	switch data := event.Data.(type) {
+	case collector.HTTPRequest:
+		if data.ResponseBody == nil {
+			http.Error(w, "No response body available", http.StatusNotFound)
+			return
+		}
+		body = data.ResponseBody.Bytes()
+		contentType = data.ResponseHeaders.Get("Content-Type")
+	case collector.HTTPServerRequest:
+		if data.ResponseBody == nil {
+			http.Error(w, "No response body available", http.StatusNotFound)
+			return
+		}
+		body = data.ResponseBody.Bytes()
+		contentType = data.ResponseHeaders.Get("Content-Type")
+	default:
+		http.Error(w, "Event type does not have a response body", http.StatusBadRequest)
+		return
+	}
+
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=response-body-%s", eventID))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	w.Write(body)
 }
