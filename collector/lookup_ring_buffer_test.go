@@ -2,6 +2,7 @@ package collector_test
 
 import (
 	"fmt"
+	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,20 +15,22 @@ type testRecord struct {
 	Data string
 }
 
-func (r testRecord) Identity() string {
-	return r.ID
+func (r *testRecord) Visit() iter.Seq2[string, *testRecord] {
+	return func(yield func(string, *testRecord) bool) {
+		yield(r.ID, r)
+	}
 }
 
 func TestLookupRingBuffer_Basic(t *testing.T) {
 	// Create a new ring buffer with capacity 3
-	rb := collector.NewLookupRingBuffer[testRecord, string](3)
+	rb := collector.NewLookupRingBuffer[*testRecord, string](3)
 
 	// Check initial state
 	assert.Equal(t, uint64(0), rb.Size())
 	assert.Equal(t, uint64(3), rb.Capacity())
 
 	// Add a record
-	rec1 := testRecord{ID: "1", Data: "data1"}
+	rec1 := &testRecord{ID: "1", Data: "data1"}
 	rb.Add(rec1)
 
 	// Check size
@@ -44,8 +47,8 @@ func TestLookupRingBuffer_Basic(t *testing.T) {
 	assert.Equal(t, rec1, records[0])
 
 	// Add more records
-	rec2 := testRecord{ID: "2", Data: "data2"}
-	rec3 := testRecord{ID: "3", Data: "data3"}
+	rec2 := &testRecord{ID: "2", Data: "data2"}
+	rec3 := &testRecord{ID: "3", Data: "data3"}
 	rb.Add(rec2)
 	rb.Add(rec3)
 
@@ -75,18 +78,18 @@ func TestLookupRingBuffer_Basic(t *testing.T) {
 
 func TestLookupRingBuffer_Overwrite(t *testing.T) {
 	// Create a new ring buffer with capacity 3
-	rb := collector.NewLookupRingBuffer[testRecord, string](3)
+	rb := collector.NewLookupRingBuffer[*testRecord, string](3)
 
 	// Fill the buffer to capacity
-	rb.Add(testRecord{ID: "1", Data: "data1"})
-	rb.Add(testRecord{ID: "2", Data: "data2"})
-	rb.Add(testRecord{ID: "3", Data: "data3"})
+	rb.Add(&testRecord{ID: "1", Data: "data1"})
+	rb.Add(&testRecord{ID: "2", Data: "data2"})
+	rb.Add(&testRecord{ID: "3", Data: "data3"})
 
 	// Buffer is now full
 	assert.Equal(t, uint64(3), rb.Size())
 
 	// Add a new record which should overwrite the oldest one
-	rb.Add(testRecord{ID: "4", Data: "data4"})
+	rb.Add(&testRecord{ID: "4", Data: "data4"})
 
 	// Size should still be at capacity
 	assert.Equal(t, uint64(3), rb.Size())
@@ -108,8 +111,8 @@ func TestLookupRingBuffer_Overwrite(t *testing.T) {
 	assert.Equal(t, "4", records[2].ID)
 
 	// Add two more records
-	rb.Add(testRecord{ID: "5", Data: "data5"})
-	rb.Add(testRecord{ID: "6", Data: "data6"})
+	rb.Add(&testRecord{ID: "5", Data: "data5"})
+	rb.Add(&testRecord{ID: "6", Data: "data6"})
 
 	// Check that older records are no longer in lookup
 	_, exists = rb.Lookup("2")
@@ -135,12 +138,12 @@ func TestLookupRingBuffer_Overwrite(t *testing.T) {
 
 func TestLookupRingBuffer_GetRecords(t *testing.T) {
 	// Create a new ring buffer with capacity 5
-	rb := collector.NewLookupRingBuffer[testRecord, string](5)
+	rb := collector.NewLookupRingBuffer[*testRecord, string](5)
 
 	// Add records
-	rb.Add(testRecord{ID: "1", Data: "data1"})
-	rb.Add(testRecord{ID: "2", Data: "data2"})
-	rb.Add(testRecord{ID: "3", Data: "data3"})
+	rb.Add(&testRecord{ID: "1", Data: "data1"})
+	rb.Add(&testRecord{ID: "2", Data: "data2"})
+	rb.Add(&testRecord{ID: "3", Data: "data3"})
 
 	// Get fewer records than available
 	records := rb.GetRecords(2)
@@ -156,9 +159,9 @@ func TestLookupRingBuffer_GetRecords(t *testing.T) {
 	assert.Equal(t, "3", records[2].ID)
 
 	// Fill the buffer beyond capacity
-	rb.Add(testRecord{ID: "4", Data: "data4"})
-	rb.Add(testRecord{ID: "5", Data: "data5"})
-	rb.Add(testRecord{ID: "6", Data: "data6"})
+	rb.Add(&testRecord{ID: "4", Data: "data4"})
+	rb.Add(&testRecord{ID: "5", Data: "data5"})
+	rb.Add(&testRecord{ID: "6", Data: "data6"})
 
 	// Check that we get correct records (the latest ones)
 	records = rb.GetRecords(5)
@@ -179,7 +182,7 @@ func TestLookupRingBuffer_GetRecords(t *testing.T) {
 
 func TestLookupRingBuffer_EmptyBuffer(t *testing.T) {
 	// Create a new ring buffer with capacity 3
-	rb := collector.NewLookupRingBuffer[testRecord, string](3)
+	rb := collector.NewLookupRingBuffer[*testRecord, string](3)
 
 	// GetRecords on empty buffer should return empty slice
 	records := rb.GetRecords(5)
@@ -193,12 +196,12 @@ func TestLookupRingBuffer_EmptyBuffer(t *testing.T) {
 func TestLookupRingBuffer_LargeCapacity(t *testing.T) {
 	// Create a buffer with large capacity
 	capacity := uint64(1000)
-	rb := collector.NewLookupRingBuffer[testRecord, string](capacity)
+	rb := collector.NewLookupRingBuffer[*testRecord, string](capacity)
 
 	// Add many records
 	for i := 0; i < 2000; i++ {
 		id := fmt.Sprintf("%d", i)
-		rb.Add(testRecord{ID: id, Data: "data-" + id})
+		rb.Add(&testRecord{ID: id, Data: "data-" + id})
 	}
 
 	// Check size

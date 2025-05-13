@@ -1,15 +1,18 @@
 package collector
 
-import "sync"
+import (
+	"iter"
+	"sync"
+)
 
-type Identifieable[T comparable] interface {
-	Identity() T
+type Visitable[S comparable, T any] interface {
+	Visit() iter.Seq2[S, T]
 }
 
 // LookupRingBuffer is a thread-safe ring buffer with lookup functionality
-type LookupRingBuffer[T Identifieable[S], S comparable] struct {
+type LookupRingBuffer[T Visitable[S, T], S comparable] struct {
 	buffer     []T
-	lookup     map[S]*T
+	lookup     map[S]T
 	size       uint64
 	capacity   uint64
 	writeIndex uint64
@@ -17,14 +20,14 @@ type LookupRingBuffer[T Identifieable[S], S comparable] struct {
 }
 
 // NewLookupRingBuffer creates a new ring buffer with the given capacity
-func NewLookupRingBuffer[T Identifieable[S], S comparable](capacity uint64) *LookupRingBuffer[T, S] {
+func NewLookupRingBuffer[T Visitable[S, T], S comparable](capacity uint64) *LookupRingBuffer[T, S] {
 	if capacity == 0 {
 		panic("capacity must be greater than 0")
 	}
 
 	return &LookupRingBuffer[T, S]{
 		buffer:     make([]T, capacity),
-		lookup:     make(map[S]*T, capacity),
+		lookup:     make(map[S]T, capacity),
 		capacity:   capacity,
 		size:       0,
 		writeIndex: 0,
@@ -50,12 +53,16 @@ func (rb *LookupRingBuffer[T, S]) Add(record T) {
 	if rb.size < rb.capacity {
 		rb.size++
 	} else {
-		// Remove the old record from the lookup map
-		delete(rb.lookup, lostRecord.Identity())
+		for id := range lostRecord.Visit() {
+			// Remove the old entries from the lookup map
+			delete(rb.lookup, id)
+		}
 	}
 
-	// Add the new record to the lookup map
-	rb.lookup[record.Identity()] = &rb.buffer[index]
+	// Add references to the new entries to the lookup map
+	for id, entry := range record.Visit() {
+		rb.lookup[id] = entry
+	}
 }
 
 // GetRecords returns a slice of the most recent n records
@@ -87,7 +94,7 @@ func (rb *LookupRingBuffer[T, S]) Lookup(identity S) (T, bool) {
 
 	record, found := rb.lookup[identity]
 	if found {
-		return *record, true
+		return record, true
 	}
 
 	var empty T

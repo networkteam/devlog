@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -49,7 +48,6 @@ func NewHandler(options HandlerOptions) *Handler {
 	mux.HandleFunc("/event/{eventId}", handler.getEventDetails)
 
 	// Test routes
-	mux.HandleFunc("/events", handler.getEvents)
 	mux.HandleFunc("/logs", handler.getLogs)
 	mux.HandleFunc("/logs/events", handler.getLogsSSE)
 	mux.HandleFunc("/http-client-requests", handler.getHTTPClientRequests)
@@ -63,9 +61,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-
 	idStr := r.URL.Query().Get("id")
 	var selectedEvent *collector.Event
 	if idStr != "" {
@@ -79,7 +74,7 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Event not found", http.StatusNotFound)
 			return
 		}
-		selectedEvent = &event
+		selectedEvent = event
 	}
 
 	templ.Handler(views.Dashboard(views.DashboardProps{
@@ -125,57 +120,6 @@ func (h *Handler) getEventDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templ.Handler(views.EventDetailContainer(event)).ServeHTTP(w, r)
-}
-
-func (h *Handler) getEvents(w http.ResponseWriter, r *http.Request) {
-	recentEvents := h.eventCollector.GetEvents(10)
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-
-	// TODO Use proper templating
-	_, _ = w.Write([]byte("<html><body><h1>Recent Events</h1><a href='/'>&larr; Back to Dashboard</a><ul>"))
-	for _, event := range recentEvents {
-		_, _ = w.Write([]byte("<li>" + formatEventAsHTML(event) + "</li>"))
-	}
-	_, _ = w.Write([]byte("</ul></body></html>"))
-}
-
-func formatEventAsHTML(event collector.Event) string {
-	var sb strings.Builder
-	sb.WriteString("<div>")
-	sb.WriteString("<div>")
-	sb.WriteString("Start:")
-	sb.WriteString(event.Start.Format("15:04:05.999999"))
-	sb.WriteString("</div>")
-	sb.WriteString("<div>")
-	sb.WriteString("End:")
-	sb.WriteString(event.End.Format("15:04:05.999999"))
-	sb.WriteString("</div>")
-	sb.WriteString("<div>")
-
-	switch v := event.Data.(type) {
-	case slog.Record:
-		sb.WriteString(v.Time.Format(time.RFC3339) + " " + html.EscapeString(v.Message))
-	case collector.HTTPRequest:
-		sb.WriteString(v.RequestTime.Format(time.RFC3339) + " → " + html.EscapeString(v.Method) + " " + html.EscapeString(v.URL) + ": " + statusBadge(v.StatusCode))
-	case collector.HTTPServerRequest:
-		sb.WriteString(v.RequestTime.Format(time.RFC3339) + " ← " + html.EscapeString(v.Method) + " " + html.EscapeString(v.Path) + ": " + statusBadge(v.StatusCode))
-	}
-
-	if len(event.Children) > 0 {
-		sb.WriteString("<ul>")
-	}
-	for _, childEvent := range event.Children {
-		sb.WriteString("<li>" + formatEventAsHTML(childEvent) + "</li>")
-	}
-	if len(event.Children) > 0 {
-		sb.WriteString("</ul>")
-	}
-
-	sb.WriteString("</div>")
-	sb.WriteString("</div>")
-	return sb.String()
 }
 
 func (h *Handler) getLogs(w http.ResponseWriter, r *http.Request) {

@@ -23,14 +23,14 @@ templ EmptyDetails() {
 }
 
 // Event details container (will load the correct detail type)
-templ EventDetailContainer(event collector.Event) {
+templ EventDetailContainer(event *collector.Event) {
     <div id="event-details">
         @EventDetails(event)
     </div>
 }
 
 // Dispatcher for different event types
-templ EventDetails(event collector.Event) {
+templ EventDetails(event *collector.Event) {
     switch data := event.Data.(type) {
     case collector.HTTPRequest:
         @HTTPRequestDetails(event, data)
@@ -48,7 +48,7 @@ templ EventDetails(event collector.Event) {
 }
 
 // HTTP Client Request Details
-templ HTTPRequestDetails(event collector.Event, request collector.HTTPRequest) {
+templ HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) {
     {{ parsedURL, _ := url.Parse(request.URL) }}
     {{ duration := request.Duration() }}
     <div class="p-4">
@@ -141,7 +141,7 @@ templ HTTPRequestDetails(event collector.Event, request collector.HTTPRequest) {
 }
 
 // HTTP Server Request Details
-templ HTTPServerRequestDetails(event collector.Event, request collector.HTTPServerRequest) {
+templ HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServerRequest) {
     {{ duration := request.Duration() }}
     <div class="p-4">
         <div class="mb-6">
@@ -237,7 +237,7 @@ templ HTTPServerRequestDetails(event collector.Event, request collector.HTTPServ
 }
 
 // Log Record Details
-templ LogRecordDetails(event collector.Event, record slog.Record) {
+templ LogRecordDetails(event *collector.Event, record slog.Record) {
     <div class="p-4">
         <div class="mb-6">
             <div class="flex items-center gap-2 mb-2">

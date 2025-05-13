@@ -50,7 +50,7 @@ func EmptyDetails() templ.Component {
 }
 
 // Event details container (will load the correct detail type)
-func EventDetailContainer(event collector.Event) templ.Component {
+func EventDetailContainer(event *collector.Event) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -88,7 +88,7 @@ func EventDetailContainer(event collector.Event) templ.Component {
 }
 
 // Dispatcher for different event types
-func EventDetails(event collector.Event) templ.Component {
+func EventDetails(event *collector.Event) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -149,7 +149,7 @@ func EventDetails(event collector.Event) templ.Component {
 }
 
 // HTTP Client Request Details
-func HTTPRequestDetails(event collector.Event, request collector.HTTPRequest) templ.Component {
+func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -364,7 +364,7 @@ func HTTPRequestDetails(event collector.Event, request collector.HTTPRequest) te
 }
 
 // HTTP Server Request Details
-func HTTPServerRequestDetails(event collector.Event, request collector.HTTPServerRequest) templ.Component {
+func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServerRequest) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -591,7 +591,7 @@ func HTTPServerRequestDetails(event collector.Event, request collector.HTTPServe
 }
 
 // Log Record Details
-func LogRecordDetails(event collector.Event, record slog.Record) templ.Component {
+func LogRecordDetails(event *collector.Event, record slog.Record) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

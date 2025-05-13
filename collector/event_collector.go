@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"iter"
 	"sync"
 	"time"
 
@@ -16,7 +17,7 @@ const (
 
 // EventCollector is a collector for events that can be grouped
 type EventCollector struct {
-	buffer     *LookupRingBuffer[Event, string]
+	buffer     *LookupRingBuffer[*Event, uuid.UUID]
 	openGroups map[uuid.UUID]*Event
 	notifier   *Notifier[Event]
 
@@ -39,7 +40,7 @@ func NewEventCollectorWithOptions(capacity uint64, options EventOptions) *EventC
 	}
 
 	return &EventCollector{
-		buffer:     NewLookupRingBuffer[Event, string](capacity),
+		buffer:     NewLookupRingBuffer[*Event, uuid.UUID](capacity),
 		openGroups: make(map[uuid.UUID]*Event),
 		notifier:   NewNotifierWithOptions[Event](notifierOptions),
 	}
@@ -81,13 +82,13 @@ func (c *EventCollector) CollectEvent(ctx context.Context, data any) {
 	if evt.GroupID != nil {
 		outerEvt := c.openGroups[*evt.GroupID]
 		if outerEvt != nil {
-			outerEvt.Children = append(outerEvt.Children, *evt)
+			outerEvt.Children = append(outerEvt.Children, evt)
 		}
 	}
 
 	// Add the event to the buffer if it is top-level
 	if evt.GroupID == nil {
-		c.buffer.Add(*evt)
+		c.buffer.Add(evt)
 		c.notifier.Notify(*evt)
 	}
 }
@@ -137,7 +138,7 @@ func (c *EventCollector) EndEvent(ctx context.Context, data any) {
 	if evt.GroupID != nil {
 		outerEvt := c.openGroups[*evt.GroupID]
 		if outerEvt != nil {
-			outerEvt.Children = append(outerEvt.Children, *evt)
+			outerEvt.Children = append(outerEvt.Children, evt)
 		}
 	}
 
@@ -146,17 +147,17 @@ func (c *EventCollector) EndEvent(ctx context.Context, data any) {
 
 	// Add the event to the buffer if it is top-level
 	if evt.GroupID == nil {
-		c.buffer.Add(*evt)
+		c.buffer.Add(evt)
 		c.notifier.Notify(*evt)
 	}
 }
 
-func (c *EventCollector) GetEvents(n uint64) []Event {
+func (c *EventCollector) GetEvents(n uint64) []*Event {
 	return c.buffer.GetRecords(n)
 }
 
-func (c *EventCollector) GetEvent(id uuid.UUID) (Event, bool) {
-	return c.buffer.Lookup(id.String())
+func (c *EventCollector) GetEvent(id uuid.UUID) (*Event, bool) {
+	return c.buffer.Lookup(id)
 }
 
 // Subscribe returns a channel that receives notifications of new events
@@ -180,9 +181,23 @@ type Event struct {
 	End   time.Time
 
 	// Children is a slice of events that are children of this event
-	Children []Event
+	Children []*Event
 }
 
-func (e Event) Identity() string {
-	return e.ID.String()
+func (e *Event) Visit() iter.Seq2[uuid.UUID, *Event] {
+	return func(yield func(uuid.UUID, *Event) bool) {
+		e.visitInternal(yield)
+	}
+}
+
+func (e *Event) visitInternal(yield func(uuid.UUID, *Event) bool) bool {
+	if !yield(e.ID, e) {
+		return false
+	}
+	for _, child := range e.Children {
+		if !child.visitInternal(yield) {
+			return false
+		}
+	}
+	return true
 }

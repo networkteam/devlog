@@ -13,7 +13,7 @@ import (
 
 type EventListProps struct {
     SelectedEventID *uuid.UUID
-    Events []collector.Event
+    Events []*collector.Event
 }
 
 templ EventList(props EventListProps) {
@@ -29,7 +29,7 @@ templ EventList(props EventListProps) {
 	</ul>
 }
 
-templ EventListItem(event collector.Event, selectedEventID *uuid.UUID) {
+templ EventListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     switch event.Data.(type) {
     case collector.HTTPRequest:
         @HTTPRequestListItem(event, selectedEventID)
@@ -40,11 +40,11 @@ templ EventListItem(event collector.Event, selectedEventID *uuid.UUID) {
 	}
 }
 
-func isEventSelected(event collector.Event, selectedEventID *uuid.UUID) bool {
+func isEventSelected(event *collector.Event, selectedEventID *uuid.UUID) bool {
     return selectedEventID != nil && event.ID == *selectedEventID
 }
 
-templ HTTPRequestListItem(event collector.Event, selectedEventID *uuid.UUID) {
+templ HTTPRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     {{ request := event.Data.(collector.HTTPRequest) }}
     {{ parsedURL, _ := url.Parse(request.URL) }}
     {{ isSelected := isEventSelected(event, selectedEventID) }}
@@ -92,7 +92,7 @@ templ HTTPRequestListItem(event collector.Event, selectedEventID *uuid.UUID) {
     </li>
 }
 
-templ HTTPServerRequestListItem(event collector.Event, selectedEventID *uuid.UUID) {
+templ HTTPServerRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     {{ request := event.Data.(collector.HTTPServerRequest) }}
     {{ isSelected := isEventSelected(event, selectedEventID) }}
     <li>
@@ -138,7 +138,7 @@ templ HTTPServerRequestListItem(event collector.Event, selectedEventID *uuid.UUI
     </li>
 }
 
-templ LogListItem(event collector.Event, selectedEventID *uuid.UUID) {
+templ LogListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     {{ record := event.Data.(slog.Record) }}
     {{ isSelected := isEventSelected(event, selectedEventID) }}
     <li
