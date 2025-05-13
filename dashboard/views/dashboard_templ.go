@@ -15,6 +15,7 @@ import (
 type DashboardProps struct {
 	SelectedEvent *collector.Event
 	Events        []*collector.Event
+	TruncateAfter int
 }
 
 func Dashboard(props DashboardProps) templ.Component {
@@ -38,7 +39,7 @@ func Dashboard(props DashboardProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		eventListProps := EventListProps{Events: props.Events}
+		eventListProps := EventListProps{Events: props.Events, TruncateAfter: props.TruncateAfter}
 		if props.SelectedEvent != nil {
 			eventListProps.SelectedEventID = &props.SelectedEvent.ID
 		}

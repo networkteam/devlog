@@ -14,6 +14,7 @@ import (
 type EventListProps struct {
     SelectedEventID *uuid.UUID
     Events []*collector.Event
+    TruncateAfter int
 }
 
 templ EventList(props EventListProps) {
@@ -24,12 +25,26 @@ templ EventList(props EventListProps) {
         sse-connect={"/_devlog/events-sse"}
         sse-swap="new-event"
         hx-swap="afterbegin"
+        data-truncate-after={ props.TruncateAfter }
+        hx-on:htmx:after-swap="
+            // Limit number of elements in list
+            const limit = this.dataset.truncateAfter;
+            console.log('Limit to', limit);
+            const items = this.querySelectorAll('& > li');
+            if (items.length > limit) {
+                const itemsToRemove = items.length - limit;
+                for (let i = 0; i < itemsToRemove; i++) {
+                    items[items.length - 1 - i].remove();
+                }
+            }
+        "
     >
 	    for _, event := range props.Events {
             @EventListItem(event, props.SelectedEventID)
 		}
 	</ul>
 }
+
 
 templ EventListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     switch event.Data.(type) {

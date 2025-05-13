@@ -1,11 +1,13 @@
 package views
 
 templ SplitLayout(leftContent, rightContent templ.Component) {
-	<div class="grid grid-cols-[24rem_1fr] grow">
-		<div class="border-r border-neutral-300">
-			@leftContent
+	<div class="grid grid-cols-[24rem_1fr] grow h-[calc(100vh-4rem)]">
+		<div class="border-r border-neutral-300 overflow-hidden flex flex-col">
+			<div class="overflow-y-auto">
+				@leftContent
+			</div>
 		</div>
-		<div>
+		<div class="overflow-y-auto">
 		    @rightContent
         </div>
 	</div>

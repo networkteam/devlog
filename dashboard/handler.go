@@ -82,16 +82,17 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	recentEvents := h.loadRecentEvents()
+	recentEvents, limit := h.loadRecentEvents()
 
 	templ.Handler(views.Dashboard(views.DashboardProps{
 		SelectedEvent: selectedEvent,
 		Events:        recentEvents,
+		TruncateAfter: limit,
 	})).ServeHTTP(w, r)
 }
 
 func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
-	recentEvents := h.loadRecentEvents()
+	recentEvents, limit := h.loadRecentEvents()
 
 	selectedStr := r.URL.Query().Get("selected")
 	var selectedEventID *uuid.UUID
@@ -105,6 +106,7 @@ func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(views.EventList(views.EventListProps{
 		Events:          recentEvents,
 		SelectedEventID: selectedEventID,
+		TruncateAfter:   limit,
 	})).ServeHTTP(w, r)
 }
 
@@ -253,11 +255,12 @@ func (h *Handler) getHTTPServerRequests(w http.ResponseWriter, r *http.Request) 
 	_, _ = w.Write([]byte("</ul></body></html>"))
 }
 
-func (h *Handler) loadRecentEvents() []*collector.Event {
-	recentEvents := h.eventCollector.GetEvents(100)
+func (h *Handler) loadRecentEvents() ([]*collector.Event, int) {
+	const limit = 100
+	recentEvents := h.eventCollector.GetEvents(limit)
 	slices.Reverse(recentEvents)
 
-	return recentEvents
+	return recentEvents, limit
 }
 
 // Helper functions
