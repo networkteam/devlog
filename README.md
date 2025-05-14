@@ -142,7 +142,111 @@ http.ListenAndServe(":8080", handler)
 
 ### Capturing SQL Queries
 
-> Work in progress.
+Devlog can collect SQL queries executed through the standard `database/sql` package. This is done using the `go-sqllogger` adapter.
+
+### Setup
+
+1. First, create a devlog instance:
+
+```go
+dlog := devlog.New()
+defer dlog.Close()
+```
+
+2. Create a database connector with logging:
+
+```go
+// Create your base connector (e.g., for SQLite)
+connector := newSQLiteConnector(":memory:")
+
+// Wrap it with the logging connector
+loggingConnector := sqllogger.LoggingConnector(
+    sqlloggeradapter.New(dlog.CollectDBQuery()),
+    connector,
+)
+
+// Open the database with the logging connector
+db := sql.OpenDB(loggingConnector)
+defer db.Close()
+```
+
+### What Gets Collected
+
+For each SQL query, the following information is collected:
+- The SQL query string
+- Query arguments
+- Execution duration
+- Timestamp
+
+### Example
+
+Here's a complete example showing how to use the SQL query collector:
+
+```go
+package main
+
+import (
+    "database/sql"
+    _ "github.com/mattn/go-sqlite3"
+    "github.com/networkteam/go-sqllogger"
+    sqlloggeradapter "github.com/networkteam/devlog/dbadapter/sqllogger"
+    "github.com/networkteam/devlog"
+)
+
+func main() {
+    // Create devlog instance
+    dlog := devlog.New()
+    defer dlog.Close()
+
+    // Create database connector with logging
+    connector := newSQLiteConnector(":memory:")
+    loggingConnector := sqllogger.LoggingConnector(
+        sqlloggeradapter.New(dlog.CollectDBQuery()),
+        connector,
+    )
+
+    // Open database
+    db := sql.OpenDB(loggingConnector)
+    defer db.Close()
+
+    // Execute queries - they will be automatically collected
+    db.ExecContext(ctx, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+    db.QueryContext(ctx, "SELECT * FROM users WHERE id = ?", 1)
+}
+```
+
+### Using SQLite as a `driver.Connector`
+
+```go
+// sqliteConnector is a simple implementation of driver.Connector for SQLite
+type sqliteConnector struct {
+	driver *sqlite3.SQLiteDriver
+	dsn    string
+}
+
+func newSQLiteConnector(dsn string) *sqliteConnector {
+	sqliteDriver := &sqlite3.SQLiteDriver{}
+	return &sqliteConnector{
+		driver: sqliteDriver,
+		dsn:    dsn,
+	}
+}
+
+// Connect implements driver.Connector interface
+func (c *sqliteConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	return c.driver.Open(c.dsn)
+}
+
+// Driver implements driver.Connector interface
+func (c *sqliteConnector) Driver() driver.Driver {
+	return c.driver
+}
+```
+
+The collected queries will be visible in the devlog dashboard, showing:
+- The SQL query (truncated in the list view, full query in details)
+- Query arguments
+- Execution duration in milliseconds
 
 ### Configuring the Dashboard
 
@@ -159,7 +263,15 @@ dashboard := devlog.NewWithOptions(devlog.Options{
 
 ## TODOs
 
+- [ ] Add support for generic events/groups that can be used in user-code 
+- [ ] Support plugins (e.g. for GraphQL) to add attributes to HTTP requests (operation name)
+- [ ] Implement on-demand activation of devlog (record / stop)
+- [ ] Change display of time or implement timers via JS
+- [ ] Implement reset of collected events
+- [ ] Add pretty printing of JSON
+- [ ] Implement ad-hoc change of log level via slog.Leveler via UI
 - [ ] Implement filtering of events
+- [x] Implement SQL query logging with adapters
 
 ## License
 

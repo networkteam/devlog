@@ -5,6 +5,7 @@ go 1.23.8
 replace github.com/networkteam/devlog => ../
 
 require (
+	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/networkteam/devlog v0.0.0-00010101000000-000000000000
 	github.com/samber/slog-multi v1.4.0
 )
@@ -12,10 +13,12 @@ require (
 require (
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e // indirect
 	github.com/a-h/templ v0.3.865 // indirect
+	github.com/alecthomas/chroma/v2 v2.17.2 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/apex/log v1.9.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cli/browser v1.3.0 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect

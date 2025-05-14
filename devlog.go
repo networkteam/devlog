@@ -1,6 +1,7 @@
 package devlog
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -12,6 +13,7 @@ type Instance struct {
 	logCollector        *collector.LogCollector
 	httpClientCollector *collector.HTTPClientCollector
 	httpServerCollector *collector.HTTPServerCollector
+	dbQueryCollector    *collector.DBQueryCollector
 	eventCollector      *collector.EventCollector
 }
 
@@ -19,6 +21,7 @@ func (i *Instance) Close() {
 	i.logCollector.Close()
 	i.httpClientCollector.Close()
 	i.httpServerCollector.Close()
+	i.dbQueryCollector.Close()
 	i.eventCollector.Close()
 }
 
@@ -44,6 +47,13 @@ type Options struct {
 	// Default: nil, will use collector.DefaultHTTPServerOptions()
 	HTTPServerOptions *collector.HTTPServerOptions
 
+	// DBQueryCapacity is the maximum number of database queries to keep.
+	// Default: 1000
+	DBQueryCapacity uint64
+	// DBQueryOptions are the options for the database query collector.
+	// Default: nil, will use collector.DefaultDBQueryOptions()
+	DBQueryOptions *collector.DBQueryOptions
+
 	// EventCapacity is the maximum number of events to keep.
 	// Default: 1000
 	EventCapacity uint64
@@ -67,6 +77,9 @@ func NewWithOptions(options Options) *Instance {
 	}
 	if options.HTTPServerCapacity == 0 {
 		options.HTTPServerCapacity = 1000
+	}
+	if options.DBQueryCapacity == 0 {
+		options.DBQueryCapacity = 1000
 	}
 	if options.EventCapacity == 0 {
 		options.EventCapacity = 1000
@@ -97,10 +110,17 @@ func NewWithOptions(options Options) *Instance {
 	}
 	httpServerOptions.EventCollector = eventCollector
 
+	dbQueryOptions := collector.DefaultDBQueryOptions()
+	if options.DBQueryOptions != nil {
+		dbQueryOptions = *options.DBQueryOptions
+	}
+	dbQueryOptions.EventCollector = eventCollector
+
 	instance := &Instance{
 		logCollector:        collector.NewLogCollectorWithOptions(options.LogCapacity, logOptions),
 		httpClientCollector: collector.NewHTTPClientCollectorWithOptions(options.HTTPClientCapacity, httpClientOptions),
 		httpServerCollector: collector.NewHTTPServerCollectorWithOptions(options.HTTPServerCapacity, httpServerOptions),
+		dbQueryCollector:    collector.NewDBQueryCollectorWithOptions(options.DBQueryCapacity, dbQueryOptions),
 		eventCollector:      eventCollector,
 	}
 	return instance
@@ -123,13 +143,15 @@ func (i *Instance) CollectHTTPServer(handler http.Handler) http.Handler {
 	return i.httpServerCollector.Middleware(handler)
 }
 
+// CollectDBQuery allows to integrate an adapter to collect DB queries
+func (i *Instance) CollectDBQuery() func(ctx context.Context, dbQuery collector.DBQuery) {
+	return i.dbQueryCollector.Collect
+}
+
 func (i *Instance) DashboardHandler(pathPrefix string) http.Handler {
 	return dashboard.NewHandler(
 		dashboard.HandlerOptions{
-			LogCollector:        i.logCollector,
-			HTTPClientCollector: i.httpClientCollector,
-			HTTPServerCollector: i.httpServerCollector,
-			EventCollector:      i.eventCollector,
+			EventCollector: i.eventCollector,
 
 			PathPrefix: pathPrefix,
 		},

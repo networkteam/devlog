@@ -1,17 +1,28 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/networkteam/go-sqllogger"
 	slogmulti "github.com/samber/slog-multi"
 
 	"github.com/networkteam/devlog"
 	"github.com/networkteam/devlog/collector"
+	sqlloggeradapter "github.com/networkteam/devlog/dbadapter/sqllogger"
 )
+
+type Todo struct {
+	ID        int64     `json:"id"`
+	Title     string    `json:"title"`
+	Completed bool      `json:"completed"`
+	CreatedAt time.Time `json:"created_at"`
+}
 
 func main() {
 	// 1. Set up slog with devlog middleware
@@ -32,6 +43,29 @@ func main() {
 		),
 	)
 	slog.SetDefault(logger)
+
+	// Initialize SQLite database
+	connector := newSQLiteConnector(":memory:")
+	loggingConnector := sqllogger.LoggingConnector(sqlloggeradapter.New(dlog.CollectDBQuery()), connector)
+
+	db := sql.OpenDB(loggingConnector)
+	defer db.Close()
+
+	var err error
+
+	// Create todos table
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS todos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			completed BOOLEAN NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		logger.Error("Failed to create todos table", slog.Any("err", err))
+		os.Exit(1)
+	}
 
 	mux := http.NewServeMux()
 
@@ -84,6 +118,155 @@ func main() {
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Log a thing"))
+	})
+
+	// Add todo handlers
+	mux.HandleFunc("GET /todos", func(w http.ResponseWriter, r *http.Request) {
+		logger := slog.With("component", "http", "handler", "/todos")
+		ctx := r.Context()
+
+		// List todos
+		rows, err := db.QueryContext(ctx, "SELECT id, title, completed, created_at FROM todos ORDER BY created_at DESC")
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to query todos", slog.Any("err", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		todos := []Todo{}
+		for rows.Next() {
+			var todo Todo
+			if err := rows.Scan(&todo.ID, &todo.Title, &todo.Completed, &todo.CreatedAt); err != nil {
+				logger.ErrorContext(ctx, "Failed to scan todo", slog.Any("err", err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			todos = append(todos, todo)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(todos)
+	})
+
+	mux.HandleFunc("POST /todos", func(w http.ResponseWriter, r *http.Request) {
+		logger := slog.With("component", "http", "handler", "/todos")
+		ctx := r.Context()
+
+		// Create todo
+		var todo Todo
+		if err := json.NewDecoder(r.Body).Decode(&todo); err != nil {
+			logger.ErrorContext(ctx, "Failed to decode todo", slog.Any("err", err))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		result, err := db.ExecContext(ctx, "INSERT INTO todos (title, completed) VALUES (?, ?)", todo.Title, todo.Completed)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to insert todo", slog.Any("err", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		id, err := result.LastInsertId()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to get last insert ID", slog.Any("err", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		todo.ID = id
+		todo.CreatedAt = time.Now()
+
+		logger.InfoContext(ctx, "Created todo", slog.Group("todo", "id", todo.ID, "title", todo.Title))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(todo)
+	})
+
+	mux.HandleFunc("GET /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		logger := slog.With("component", "http", "handler", "/todos/{id}")
+		id := r.PathValue("id")
+		ctx := r.Context()
+
+		var todo Todo
+		err := db.QueryRowContext(ctx, "SELECT id, title, completed, created_at FROM todos WHERE id = ?", id).
+			Scan(&todo.ID, &todo.Title, &todo.Completed, &todo.CreatedAt)
+		if err == sql.ErrNoRows {
+			logger.WarnContext(ctx, "Todo not found", "id", id)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to query todo", slog.Any("err", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(todo)
+	})
+
+	mux.HandleFunc("PUT /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		logger := slog.With("component", "http", "handler", "/todos/{id}")
+		id := r.PathValue("id")
+		ctx := r.Context()
+
+		var todo Todo
+		if err := json.NewDecoder(r.Body).Decode(&todo); err != nil {
+			logger.ErrorContext(ctx, "Failed to decode todo", slog.Any("err", err))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		result, err := db.ExecContext(ctx, "UPDATE todos SET title = ?, completed = ? WHERE id = ?", todo.Title, todo.Completed, id)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to update todo", slog.Any("err", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		rows, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to get rows affected", slog.Any("err", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if rows == 0 {
+			logger.WarnContext(ctx, "Todo not found for update", "id", id)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mux.HandleFunc("DELETE /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		logger := slog.With("component", "http", "handler", "/todos/{id}")
+		id := r.PathValue("id")
+		ctx := r.Context()
+
+		result, err := db.ExecContext(ctx, "DELETE FROM todos WHERE id = ?", id)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to delete todo", slog.Any("err", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		rows, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to get rows affected", slog.Any("err", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if rows == 0 {
+			logger.WarnContext(ctx, "Todo not found for deletion", "id", id)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	// 4. Wrap with devlog middleware to inspect requests and responses to the server

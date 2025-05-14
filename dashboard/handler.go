@@ -15,10 +15,7 @@ import (
 )
 
 type Handler struct {
-	logCollector        *collector.LogCollector
-	httpClientCollector *collector.HTTPClientCollector
-	httpServerCollector *collector.HTTPServerCollector
-	eventCollector      *collector.EventCollector
+	eventCollector *collector.EventCollector
 
 	pathPrefix string
 
@@ -26,10 +23,7 @@ type Handler struct {
 }
 
 type HandlerOptions struct {
-	LogCollector        *collector.LogCollector
-	HTTPClientCollector *collector.HTTPClientCollector
-	HTTPServerCollector *collector.HTTPServerCollector
-	EventCollector      *collector.EventCollector
+	EventCollector *collector.EventCollector
 
 	// PathPrefix where the Handler is mounted (e.g. "/_devlog"), can be left empty if the Handler is at the root ("/").
 	PathPrefix string
@@ -38,10 +32,7 @@ type HandlerOptions struct {
 func NewHandler(options HandlerOptions) *Handler {
 	mux := http.NewServeMux()
 	handler := &Handler{
-		logCollector:        options.LogCollector,
-		httpClientCollector: options.HTTPClientCollector,
-		httpServerCollector: options.HTTPServerCollector,
-		eventCollector:      options.EventCollector,
+		eventCollector: options.EventCollector,
 
 		pathPrefix: options.PathPrefix,
 

@@ -51,6 +51,8 @@ templ EventListItem(event *collector.Event, selectedEventID *uuid.UUID) {
         @HTTPRequestListItem(event, selectedEventID)
     case collector.HTTPServerRequest:
         @HTTPServerRequestListItem(event, selectedEventID)
+    case collector.DBQuery:
+        @DBQueryListItem(event, selectedEventID)
     case slog.Record:
         @LogListItem(event, selectedEventID)
 	}
@@ -181,4 +183,27 @@ templ LogListItem(event *collector.Event, selectedEventID *uuid.UUID) {
             </div>
         }
     </li>
+}
+
+templ DBQueryListItem(event *collector.Event, selectedEventID *uuid.UUID) {
+    {{ query := event.Data.(collector.DBQuery) }}
+    @linkListItem(event, selectedEventID) {
+        <div class="flex items-center gap-2">
+            <div class="flex-1">
+                <div class="text-sm font-medium">
+                    if len(query.Query) > 100 {
+                        { query.Query[:100] }...
+                    } else {
+                        { query.Query }
+                    }
+                </div>
+                <div class="text-xs text-neutral-500">
+                    Duration: { fmt.Sprintf("%.2fms", float64(query.Duration.Microseconds())/1000) }
+                    if query.Error != nil {
+                        <span class="text-red-500">Error: { query.Error.Error() }</span>
+                    }
+                </div>
+            </div>
+        </div>
+    }
 }

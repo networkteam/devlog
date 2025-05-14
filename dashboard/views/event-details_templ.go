@@ -206,6 +206,11 @@ func EventDetails(event *collector.Event) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+		case collector.DBQuery:
+			templ_7745c5c3_Err = DBQueryDetails(event, data).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		default:
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"p-4\"><div class=\"alert alert-warning\"><p>Unknown event type: ")
 			if templ_7745c5c3_Err != nil {
@@ -214,7 +219,7 @@ func EventDetails(event *collector.Event) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%T", event.Data))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 77, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 79, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -284,7 +289,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(request.Method)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 95, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 97, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -297,7 +302,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(parsedURL.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 97, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 99, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -332,7 +337,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(request.StatusCode))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 105, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 107, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -345,7 +350,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(duration))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 111, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 113, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -358,7 +363,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(request.RequestTime))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 118, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 120, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -371,7 +376,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(request.URL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 127, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 129, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -389,7 +394,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 149, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 151, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -402,7 +407,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(values, ", "))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 150, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 152, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -457,7 +462,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(key)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 196, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 198, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
@@ -470,7 +475,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) t
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(values, ", "))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 197, Col: 104}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 199, Col: 104}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -575,7 +580,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(request.Method)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 238, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 240, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -588,7 +593,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(request.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 240, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 242, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -623,7 +628,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(request.StatusCode))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 248, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 250, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -636,7 +641,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(duration))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 254, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 256, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
@@ -649,7 +654,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(request.RequestTime))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 261, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 263, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
@@ -662,7 +667,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(request.RemoteAddr)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 265, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 267, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 		if templ_7745c5c3_Err != nil {
@@ -675,7 +680,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 		var templ_7745c5c3_Var36 string
 		templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(request.URL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 274, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 276, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 		if templ_7745c5c3_Err != nil {
@@ -693,7 +698,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 296, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 298, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -706,7 +711,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(values, ", "))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 297, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 299, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -761,7 +766,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(key)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 343, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 345, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
@@ -774,7 +779,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 				var templ_7745c5c3_Var41 string
 				templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(values, ", "))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 344, Col: 104}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 346, Col: 104}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 				if templ_7745c5c3_Err != nil {
@@ -878,7 +883,7 @@ func LogRecordDetails(event *collector.Event, record slog.Record) templ.Componen
 		var templ_7745c5c3_Var46 string
 		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(record.Level)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 384, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 386, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 		if templ_7745c5c3_Err != nil {
@@ -891,7 +896,7 @@ func LogRecordDetails(event *collector.Event, record slog.Record) templ.Componen
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(record.Message)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 386, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 388, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
@@ -904,7 +909,7 @@ func LogRecordDetails(event *collector.Event, record slog.Record) templ.Componen
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(record.Time))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 391, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 393, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -922,7 +927,7 @@ func LogRecordDetails(event *collector.Event, record slog.Record) templ.Componen
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(attr.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 410, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 412, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -935,7 +940,7 @@ func LogRecordDetails(event *collector.Event, record slog.Record) templ.Componen
 			var templ_7745c5c3_Var50 string
 			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(attr.Value.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 411, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 413, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 			if templ_7745c5c3_Err != nil {
@@ -953,7 +958,7 @@ func LogRecordDetails(event *collector.Event, record slog.Record) templ.Componen
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(formatTime(record.Time))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 423, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 425, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
@@ -971,7 +976,7 @@ func LogRecordDetails(event *collector.Event, record slog.Record) templ.Componen
 			var templ_7745c5c3_Var52 string
 			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(event.End.Sub(event.Start)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 425, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 427, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 			if templ_7745c5c3_Err != nil {
@@ -983,6 +988,121 @@ func LogRecordDetails(event *collector.Event, record slog.Record) templ.Componen
 			}
 		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "</div></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// DB Query Details
+func DBQueryDetails(event *collector.Event, query collector.DBQuery) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var53 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var53 == nil {
+			templ_7745c5c3_Var53 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<div class=\"p-4\"><div class=\"mb-4\"><h3 class=\"text-lg font-semibold mb-2\">Database Query</h3><div class=\"bg-neutral-50 p-4 rounded\"><pre class=\"whitespace-pre-wrap break-all\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var54 string
+		templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(query.Query)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 440, Col: 72}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "</pre></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if len(query.Args) > 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<div class=\"mb-4\"><h4 class=\"text-sm font-semibold mb-2\">Arguments</h4><div class=\"bg-neutral-50 p-4 rounded\"><pre class=\"whitespace-pre-wrap break-all\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var55 string
+			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%v", query.Args))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 448, Col: 94}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "</pre></div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "<div class=\"mb-4\"><h4 class=\"text-sm font-semibold mb-2\">Details</h4><dl class=\"grid grid-cols-2 gap-2 text-sm\"><dt class=\"text-neutral-500\">Duration</dt><dd>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var56 string
+		templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.2fms", float64(query.Duration.Microseconds())/1000))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 457, Col: 88}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "</dd><dt class=\"text-neutral-500\">Timestamp</dt><dd>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var57 string
+		templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(query.Timestamp.Format("2006-01-02 15:04:05.000"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 459, Col: 71}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "</dd></dl></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if query.Error != nil {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "<div class=\"mb-4\"><h4 class=\"text-sm font-semibold mb-2 text-red-500\">Error</h4><div class=\"bg-red-50 p-4 rounded text-red-700\"><pre class=\"whitespace-pre-wrap break-all\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var58 string
+			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(query.Error.Error())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/event-details.templ`, Line: 467, Col: 84}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "</pre></div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

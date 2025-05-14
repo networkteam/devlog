@@ -71,6 +71,8 @@ templ EventDetails(event *collector.Event) {
         @HTTPServerRequestDetails(event, data)
     case slog.Record:
         @LogRecordDetails(event, data)
+    case collector.DBQuery:
+        @DBQueryDetails(event, data)
     default:
         <div class="p-4">
             <div class="alert alert-warning">
@@ -426,6 +428,46 @@ templ LogRecordDetails(event *collector.Event, record slog.Record) {
                 }
             </div>
         </div>
+    </div>
+}
+
+// DB Query Details
+templ DBQueryDetails(event *collector.Event, query collector.DBQuery) {
+    <div class="p-4">
+        <div class="mb-4">
+            <h3 class="text-lg font-semibold mb-2">Database Query</h3>
+            <div class="bg-neutral-50 p-4 rounded">
+                <pre class="whitespace-pre-wrap break-all">{ query.Query }</pre>
+            </div>
+        </div>
+
+        if len(query.Args) > 0 {
+            <div class="mb-4">
+                <h4 class="text-sm font-semibold mb-2">Arguments</h4>
+                <div class="bg-neutral-50 p-4 rounded">
+                    <pre class="whitespace-pre-wrap break-all">{ fmt.Sprintf("%v", query.Args) }</pre>
+                </div>
+            </div>
+        }
+
+        <div class="mb-4">
+            <h4 class="text-sm font-semibold mb-2">Details</h4>
+            <dl class="grid grid-cols-2 gap-2 text-sm">
+                <dt class="text-neutral-500">Duration</dt>
+                <dd>{ fmt.Sprintf("%.2fms", float64(query.Duration.Microseconds())/1000) }</dd>
+                <dt class="text-neutral-500">Timestamp</dt>
+                <dd>{ query.Timestamp.Format("2006-01-02 15:04:05.000") }</dd>
+            </dl>
+        </div>
+
+        if query.Error != nil {
+            <div class="mb-4">
+                <h4 class="text-sm font-semibold mb-2 text-red-500">Error</h4>
+                <div class="bg-red-50 p-4 rounded text-red-700">
+                    <pre class="whitespace-pre-wrap break-all">{ query.Error.Error() }</pre>
+                </div>
+            </div>
+        }
     </div>
 }
 
