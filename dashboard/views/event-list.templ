@@ -5,6 +5,7 @@ import (
     "strconv"
     "net/url"
     "fmt"
+    "time"
 
     "github.com/gofrs/uuid"
 
@@ -102,7 +103,7 @@ templ HTTPRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
                     </div>
                 </div>
                 <span class="text-xs text-neutral-500">
-                    { formatDurationSince(event.Start) }
+                    <relative-time datetime={event.Start.Format(time.RFC3339) }></relative-time>
                 </span>
             </div>
             <div class="truncate text-sm font-semibold">{ parsedURL.Path }</div>
@@ -140,7 +141,7 @@ templ HTTPServerRequestListItem(event *collector.Event, selectedEventID *uuid.UU
                     </div>
                 </div>
                 <span class="text-xs text-neutral-500">
-                    { formatDurationSince(event.Start) }
+                    <relative-time datetime={event.Start.Format(time.RFC3339) }></relative-time>
                 </span>
             </div>
             <div class="truncate text-sm font-semibold">{ request.Path }</div>
@@ -170,7 +171,7 @@ templ LogListItem(event *collector.Event, selectedEventID *uuid.UUID) {
                     </div>
                 </div>
                 <span class="text-xs text-neutral-500">
-                    { formatDurationSince(event.Start) }
+                    <relative-time datetime={event.Start.Format(time.RFC3339) }></relative-time>
                 </span>
             </div>
             <div class="truncate text-sm font-semibold">{ record.Message }</div>
