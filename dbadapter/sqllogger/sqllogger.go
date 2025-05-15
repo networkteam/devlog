@@ -10,12 +10,21 @@ import (
 	"github.com/networkteam/devlog/collector"
 )
 
-func New(collect func(ctx context.Context, dbQuery collector.DBQuery)) sqllogger.SQLLogger {
-	return &adapter{collect: collect}
+type Options struct {
+	// SQL language / dialect for highlighting and formatting
+	Language string
+}
+
+func New(collect func(ctx context.Context, dbQuery collector.DBQuery), options Options) sqllogger.SQLLogger {
+	return &adapter{
+		collect: collect,
+		options: options,
+	}
 }
 
 type adapter struct {
 	collect func(ctx context.Context, dbQuery collector.DBQuery)
+	options Options
 }
 
 // ConnBegin implements sqllogger.SQLLogger.
@@ -32,6 +41,7 @@ func (a *adapter) ConnExec(ctx context.Context, connID int64, query string, args
 
 	a.collect(ctx, collector.DBQuery{
 		Query:     query,
+		Language:  a.options.Language,
 		Args:      toNamedValues(args),
 		Timestamp: timestamp,
 		Duration:  duration,
@@ -44,6 +54,7 @@ func (a *adapter) ConnExecContext(ctx context.Context, connID int64, query strin
 
 	a.collect(ctx, collector.DBQuery{
 		Query:     query,
+		Language:  a.options.Language,
 		Args:      args,
 		Timestamp: timestamp,
 		Duration:  duration,
@@ -65,6 +76,7 @@ func (a *adapter) ConnQuery(ctx context.Context, connID int64, rowsID int64, que
 
 	a.collect(ctx, collector.DBQuery{
 		Query:     query,
+		Language:  a.options.Language,
 		Args:      toNamedValues(args),
 		Timestamp: timestamp,
 		Duration:  duration,
@@ -77,6 +89,7 @@ func (a *adapter) ConnQueryContext(ctx context.Context, connID int64, rowsID int
 
 	a.collect(ctx, collector.DBQuery{
 		Query:     query,
+		Language:  a.options.Language,
 		Args:      args,
 		Timestamp: timestamp,
 		Duration:  duration,
@@ -99,6 +112,7 @@ func (a *adapter) StmtClose(ctx context.Context, stmtID int64) {
 func (a *adapter) StmtExec(ctx context.Context, stmtID int64, query string, args []driver.Value) {
 	a.collect(ctx, collector.DBQuery{
 		Query:     query,
+		Language:  a.options.Language,
 		Args:      toNamedValues(args),
 		Timestamp: time.Now(),
 	})
@@ -109,6 +123,7 @@ func (a *adapter) StmtExec(ctx context.Context, stmtID int64, query string, args
 func (a *adapter) StmtExecContext(ctx context.Context, stmtID int64, query string, args []driver.NamedValue) {
 	a.collect(ctx, collector.DBQuery{
 		Query:     query,
+		Language:  a.options.Language,
 		Args:      args,
 		Timestamp: time.Now(),
 	})
@@ -120,6 +135,7 @@ func (a *adapter) StmtQuery(ctx context.Context, stmtID int64, rowsID int64, que
 
 	a.collect(ctx, collector.DBQuery{
 		Query:     query,
+		Language:  a.options.Language,
 		Args:      toNamedValues(args),
 		Timestamp: timestamp,
 		Duration:  duration,
@@ -132,6 +148,7 @@ func (a *adapter) StmtQueryContext(ctx context.Context, stmtID int64, rowsID int
 
 	a.collect(ctx, collector.DBQuery{
 		Query:     query,
+		Language:  a.options.Language,
 		Args:      args,
 		Timestamp: timestamp,
 		Duration:  duration,

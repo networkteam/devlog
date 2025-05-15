@@ -437,26 +437,36 @@ templ DBQueryDetails(event *collector.Event, query collector.DBQuery) {
         <div class="mb-4">
             <h3 class="text-lg font-semibold mb-2">Database Query</h3>
             <div class="bg-neutral-50 p-4 rounded">
-                <pre class="whitespace-pre-wrap break-all">{ query.Query }</pre>
+                <pre id="db-query" class="whitespace-pre-wrap break-all">{ query.Query }</pre>
             </div>
         </div>
 
         if len(query.Args) > 0 {
             <div class="mb-4">
                 <h4 class="text-sm font-semibold mb-2">Arguments</h4>
-                <div class="bg-neutral-50 p-4 rounded">
-                    <pre class="whitespace-pre-wrap break-all">{ fmt.Sprintf("%v", query.Args) }</pre>
-                </div>
+                <dl class="grid grid-cols-[min-content_1fr] gap-2 text-sm">
+                for _, arg := range query.Args {
+                    <dt class="text-neutral-500">{ arg.Ordinal }</dt>
+                    <dd class="font-mono">{ fmt.Sprint(arg.Value) }</dd>
+                }
+                </dl>
             </div>
         }
 
+
         <div class="mb-4">
             <h4 class="text-sm font-semibold mb-2">Details</h4>
-            <dl class="grid grid-cols-2 gap-2 text-sm">
+            <dl class="grid grid-cols-[min-content_1fr] gap-2 text-sm">
                 <dt class="text-neutral-500">Duration</dt>
                 <dd>{ fmt.Sprintf("%.2fms", float64(query.Duration.Microseconds())/1000) }</dd>
+
                 <dt class="text-neutral-500">Timestamp</dt>
                 <dd>{ query.Timestamp.Format("2006-01-02 15:04:05.000") }</dd>
+
+                if query.Language != "" {
+                    <dt class="text-neutral-500">Language</dt>
+                    <dd>{ query.Language }</dd>
+                }
             </dl>
         </div>
 
@@ -469,6 +479,15 @@ templ DBQueryDetails(event *collector.Event, query collector.DBQuery) {
             </div>
         }
     </div>
+    <script>
+    (function() {
+        var queryContent = document.getElementById('db-query');
+        var output = sqlFormatter.format(queryContent.textContent, {
+            language: {{ query.Language }} || "sql",
+        });
+        queryContent.textContent = output;
+    })();
+    </script>
 }
 
 // Helper function to determine text color based on status code

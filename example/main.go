@@ -46,7 +46,9 @@ func main() {
 
 	// Initialize SQLite database
 	connector := newSQLiteConnector(":memory:")
-	loggingConnector := sqllogger.LoggingConnector(sqlloggeradapter.New(dlog.CollectDBQuery()), connector)
+	loggingConnector := sqllogger.LoggingConnector(sqlloggeradapter.New(dlog.CollectDBQuery(), sqlloggeradapter.Options{
+		Language: "sqlite",
+	}), connector)
 
 	db := sql.OpenDB(loggingConnector)
 	defer db.Close()

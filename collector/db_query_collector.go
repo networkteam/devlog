@@ -16,7 +16,9 @@ type DBQuery struct {
 	Duration time.Duration
 	// Timestamp when the query or statement was started
 	Timestamp time.Time
-	// Error if any error occured
+	// SQL dialect / language for highlighting and formatting
+	Language string
+	// Error if any error occurred
 	Error error
 }
 

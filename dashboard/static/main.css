@@ -236,6 +236,9 @@
   .mx-auto {
     margin-inline: auto;
   }
+  .mt-0\.5 {
+    margin-top: calc(var(--spacing) * 0.5);
+  }
   .mt-1 {
     margin-top: calc(var(--spacing) * 1);
   }
@@ -325,6 +328,12 @@
   }
   .grid-cols-\[24rem_1fr\] {
     grid-template-columns: 24rem 1fr;
+  }
+  .grid-cols-\[min-content_1fr\] {
+    grid-template-columns: min-content 1fr;
+  }
+  .grid-cols-\[minmax\(900px\,_1fr\)_100px\] {
+    grid-template-columns: minmax(900px, 1fr) 100px;
   }
   .flex-col {
     flex-direction: column;
