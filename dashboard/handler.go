@@ -207,7 +207,7 @@ func (h *Handler) downloadRequestBody(w http.ResponseWriter, r *http.Request) {
 	var contentType string
 
 	switch data := event.Data.(type) {
-	case collector.HTTPRequest:
+	case collector.HTTPClientRequest:
 		if data.RequestBody == nil {
 			http.Error(w, "No request body available", http.StatusNotFound)
 			return
@@ -255,7 +255,7 @@ func (h *Handler) downloadResponseBody(w http.ResponseWriter, r *http.Request) {
 	var contentType string
 
 	switch data := event.Data.(type) {
-	case collector.HTTPRequest:
+	case collector.HTTPClientRequest:
 		if data.ResponseBody == nil {
 			http.Error(w, "No response body available", http.StatusNotFound)
 			return

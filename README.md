@@ -264,13 +264,13 @@ dashboard := devlog.NewWithOptions(devlog.Options{
 ## TODOs
 
 - [ ] Add support for generic events/groups that can be used in user-code 
-- [ ] Support plugins (e.g. for GraphQL) to add attributes to HTTP requests (operation name)
 - [ ] Implement on-demand activation of devlog (record / stop)
-- [ ] Change display of time or implement timers via JS
 - [ ] Implement reset of collected events
 - [ ] Add pretty printing of JSON
 - [ ] Implement ad-hoc change of log level via slog.Leveler via UI
 - [ ] Implement filtering of events
+- [ ] Support plugins (e.g. for GraphQL) to add attributes to HTTP requests (operation name)
+- [x] Change display of time or implement timers via JS
 - [x] Implement SQL query logging with adapters
 
 ## License

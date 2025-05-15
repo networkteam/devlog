@@ -68,6 +68,7 @@ func New() *Instance {
 }
 
 // NewWithOptions creates a new devlog dashboard with the specified options.
+// Default options are the zero value of Options.
 func NewWithOptions(options Options) *Instance {
 	if options.LogCapacity == 0 {
 		options.LogCapacity = 1000

@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/gofrs/uuid"
 )
 
 // HTTPServerOptions configures the HTTP server collector
@@ -30,12 +28,17 @@ type HTTPServerOptions struct {
 	// Useful for excluding static files or the dashboard itself
 	SkipPaths []string
 
+	// Transformers are functions that transform/augment the HTTPServerRequest before adding it to the collector
+	Transformers []HTTPServerRequestTransformer
+
 	// NotifierOptions are options for notification about new requests
 	NotifierOptions *NotifierOptions
 
 	// EventCollector is an optional event collector for collecting requests as grouped events
 	EventCollector *EventCollector
 }
+
+type HTTPServerRequestTransformer func(HTTPServerRequest) HTTPServerRequest
 
 // DefaultHTTPServerOptions returns default options for the HTTP server collector
 func DefaultHTTPServerOptions() HTTPServerOptions {
@@ -46,30 +49,6 @@ func DefaultHTTPServerOptions() HTTPServerOptions {
 		CaptureResponseBody: true,
 		SkipPaths:           nil,
 	}
-}
-
-// HTTPServerRequest represents a captured HTTP server request/response pair
-type HTTPServerRequest struct {
-	ID              uuid.UUID
-	Method          string
-	Path            string
-	URL             string
-	RemoteAddr      string
-	RequestTime     time.Time
-	ResponseTime    time.Time
-	StatusCode      int
-	RequestSize     int64
-	ResponseSize    int64
-	RequestHeaders  http.Header
-	ResponseHeaders http.Header
-	RequestBody     *Body
-	ResponseBody    *Body
-	Error           error
-}
-
-// Duration returns the duration of the request
-func (r HTTPServerRequest) Duration() time.Duration {
-	return r.ResponseTime.Sub(r.RequestTime)
 }
 
 // HTTPServerCollector collects incoming HTTP requests
@@ -147,6 +126,7 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 			RemoteAddr:     r.RemoteAddr,
 			RequestTime:    requestTime,
 			RequestHeaders: cloneHeader(r.Header),
+			Tags:           make(map[string]string),
 		}
 
 		// Capture the request body if present and configured to do so
@@ -206,6 +186,11 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 		// Add response size if available
 		if crw.body != nil {
 			httpReq.ResponseSize = crw.body.Size()
+		}
+
+		// Transform the request if any transformers are provided
+		for _, transformer := range c.options.Transformers {
+			httpReq = transformer(httpReq)
 		}
 
 		// Add to the collector

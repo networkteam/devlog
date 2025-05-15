@@ -191,7 +191,7 @@ func EventDetails(event *collector.Event) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		switch data := event.Data.(type) {
-		case collector.HTTPRequest:
+		case collector.HTTPClientRequest:
 			templ_7745c5c3_Err = HTTPRequestDetails(event, data).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -235,7 +235,7 @@ func EventDetails(event *collector.Event) templ.Component {
 }
 
 // HTTP Client Request Details
-func HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) templ.Component {
+func HTTPRequestDetails(event *collector.Event, request collector.HTTPClientRequest) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

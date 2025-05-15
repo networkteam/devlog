@@ -75,7 +75,7 @@ func TestEventCollector_StartEndEvent(t *testing.T) {
 	assert.Equal(t, 0, len(evt.Children))
 
 	// Extract the group ID from the context
-	groupID, ok := collector.GroupIDFromContext(ctx)
+	groupID, ok := collector.groupIDFromContext(ctx)
 	assert.True(t, ok)
 	assert.Equal(t, evt.ID, groupID)
 }

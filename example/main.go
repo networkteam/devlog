@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -27,7 +28,19 @@ type Todo struct {
 func main() {
 	// 1. Set up slog with devlog middleware
 
-	dlog := devlog.New()
+	httpServerOptions := collector.DefaultHTTPServerOptions()
+	httpServerOptions.Transformers = []collector.HTTPServerRequestTransformer{
+		func(request collector.HTTPServerRequest) collector.HTTPServerRequest {
+			if strings.HasPrefix(request.Path, "/todo") {
+				// Add a custom tag for all requests to /todo
+				request.Tags["api"] = "todos"
+			}
+			return request
+		},
+	}
+	dlog := devlog.NewWithOptions(devlog.Options{
+		HTTPServerOptions: &httpServerOptions,
+	})
 	defer dlog.Close()
 
 	logger := slog.New(

@@ -22,12 +22,17 @@ type HTTPClientOptions struct {
 	// CaptureResponseBody indicates whether to capture response bodies
 	CaptureResponseBody bool
 
+	// Transformers are functions that transform/augment the HTTPClientRequest before adding it to the collector
+	Transformers []HTTPClientRequestTransformer
+
 	// NotifierOptions are options for notification about new requests
 	NotifierOptions *NotifierOptions
 
 	// EventCollector is an optional event collector for collecting requests as grouped events
 	EventCollector *EventCollector
 }
+
+type HTTPClientRequestTransformer func(HTTPClientRequest) HTTPClientRequest
 
 // DefaultHTTPClientOptions returns default options for the HTTP client collector
 func DefaultHTTPClientOptions() HTTPClientOptions {
@@ -41,10 +46,10 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 
 // HTTPClientCollector collects outgoing HTTP requests
 type HTTPClientCollector struct {
-	buffer         *RingBuffer[HTTPRequest]
+	buffer         *RingBuffer[HTTPClientRequest]
 	bodyPool       *BodyBufferPool
 	options        HTTPClientOptions
-	notifier       *Notifier[HTTPRequest]
+	notifier       *Notifier[HTTPClientRequest]
 	eventCollector *EventCollector
 
 	mu sync.RWMutex
@@ -63,10 +68,10 @@ func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOption
 	}
 
 	return &HTTPClientCollector{
-		buffer:         NewRingBuffer[HTTPRequest](capacity),
+		buffer:         NewRingBuffer[HTTPClientRequest](capacity),
 		bodyPool:       NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
 		options:        options,
-		notifier:       NewNotifierWithOptions[HTTPRequest](notifierOptions),
+		notifier:       NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
 		eventCollector: options.EventCollector,
 	}
 }
@@ -84,17 +89,17 @@ func (c *HTTPClientCollector) Transport(next http.RoundTripper) http.RoundTrippe
 }
 
 // GetRequests returns the most recent n HTTP requests
-func (c *HTTPClientCollector) GetRequests(n uint64) []HTTPRequest {
+func (c *HTTPClientCollector) GetRequests(n uint64) []HTTPClientRequest {
 	return c.buffer.GetRecords(n)
 }
 
 // Subscribe returns a channel that receives notifications of new log records
-func (c *HTTPClientCollector) Subscribe(ctx context.Context) <-chan HTTPRequest {
+func (c *HTTPClientCollector) Subscribe(ctx context.Context) <-chan HTTPClientRequest {
 	return c.notifier.Subscribe(ctx)
 }
 
 // Add adds an HTTP request to the collector
-func (c *HTTPClientCollector) Add(req HTTPRequest) {
+func (c *HTTPClientCollector) Add(req HTTPClientRequest) {
 	c.buffer.Add(req)
 	c.notifier.Notify(req)
 }
@@ -118,12 +123,13 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	requestTime := time.Now()
 
 	// Create a request record
-	httpReq := HTTPRequest{
+	httpReq := HTTPClientRequest{
 		ID:             id,
 		Method:         req.Method,
 		URL:            req.URL.String(),
 		RequestTime:    requestTime,
 		RequestHeaders: req.Header.Clone(),
+		Tags:           make(map[string]string),
 	}
 
 	// Track the original request body size
@@ -145,7 +151,7 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 	if t.collector.eventCollector != nil {
 		newCtx := t.collector.eventCollector.StartEvent(req.Context())
-		defer func(req *HTTPRequest) {
+		defer func(req *HTTPClientRequest) {
 			t.collector.eventCollector.EndEvent(newCtx, *req)
 		}(&httpReq)
 
@@ -190,6 +196,11 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	// Record error if present
 	if err != nil {
 		httpReq.Error = err
+	}
+
+	// Transform the request if any transformers are provided
+	for _, transformer := range t.collector.options.Transformers {
+		httpReq = transformer(httpReq)
 	}
 
 	// Add the request to the collector

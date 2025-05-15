@@ -46,14 +46,14 @@ func NewEventCollectorWithOptions(capacity uint64, options EventOptions) *EventC
 	}
 }
 
-func GroupIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+func groupIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	if groupID, ok := ctx.Value(groupIDKey).(uuid.UUID); ok {
 		return groupID, true
 	}
 	return uuid.Nil, false
 }
 
-func WithGroupID(ctx context.Context, groupID uuid.UUID) context.Context {
+func withGroupID(ctx context.Context, groupID uuid.UUID) context.Context {
 	return context.WithValue(ctx, groupIDKey, groupID)
 }
 
@@ -70,7 +70,7 @@ func (c *EventCollector) CollectEvent(ctx context.Context, data any) {
 	}
 
 	// Check if the group ID already exists in the context, so we add the event to the outer event as a child
-	outerGroupID, ok := GroupIDFromContext(ctx)
+	outerGroupID, ok := groupIDFromContext(ctx)
 	if ok {
 		evt.GroupID = &outerGroupID
 	}
@@ -107,18 +107,18 @@ func (c *EventCollector) StartEvent(ctx context.Context) (newCtx context.Context
 	}
 
 	// Check if the group ID already exists in the context, so we add the event to the outer event as a child
-	outerGroupID, ok := GroupIDFromContext(ctx)
+	outerGroupID, ok := groupIDFromContext(ctx)
 	if ok {
 		evt.GroupID = &outerGroupID
 	}
 
 	c.openGroups[eventID] = evt
 
-	return WithGroupID(ctx, eventID)
+	return withGroupID(ctx, eventID)
 }
 
 func (c *EventCollector) EndEvent(ctx context.Context, data any) {
-	existingGroupID, ok := GroupIDFromContext(ctx)
+	existingGroupID, ok := groupIDFromContext(ctx)
 	if !ok {
 		return
 	}
