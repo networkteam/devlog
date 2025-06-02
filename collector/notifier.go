@@ -135,15 +135,9 @@ func (n *Notifier[T]) Close() {
 func (n *Notifier[T]) processNotifications() {
 	for item := range n.notifyCh {
 		n.mu.RLock()
-		// Copy the subscribers to avoid holding the lock while sending
-		subscribers := make([]chan T, 0, len(n.subscribers))
-		for _, ch := range n.subscribers {
-			subscribers = append(subscribers, ch)
-		}
-		n.mu.RUnlock()
 
 		// Send to each subscriber (non-blocking)
-		for _, ch := range subscribers {
+		for _, ch := range n.subscribers {
 			select {
 			case ch <- item:
 				// Successfully sent
@@ -151,5 +145,7 @@ func (n *Notifier[T]) processNotifications() {
 				// Subscriber channel is full, drop this notification for this subscriber
 			}
 		}
+
+		n.mu.RUnlock()
 	}
 }

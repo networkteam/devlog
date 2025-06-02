@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,15 +28,16 @@ type BodyBufferPool struct {
 	mu            sync.Mutex
 	maxPoolSize   int64
 	currentSize   int64
-	buffers       []*bodyBuffer
+	reservedSpace int64
+	buffers       []*BodyBuffer
 	maxBufferSize int64
 }
 
-// bodyBuffer represents a captured body in the pool
-type bodyBuffer struct {
-	buffer    *bytes.Buffer
+// BodyBuffer represents a captured body in the pool
+type BodyBuffer struct {
+	*bytes.Buffer
 	timestamp int64 // unix timestamp when created
-	size      int64
+	finished  bool  // true if the buffer has been finalized (closed or completely read)
 }
 
 // NewBodyBufferPool creates a new buffer pool for body capturing
@@ -53,91 +53,79 @@ func NewBodyBufferPool(maxPoolSize, maxBufferSize int64) *BodyBufferPool {
 	return &BodyBufferPool{
 		maxPoolSize:   maxPoolSize,
 		currentSize:   0,
-		buffers:       make([]*bodyBuffer, 0),
+		buffers:       make([]*BodyBuffer, 0),
 		maxBufferSize: maxBufferSize,
 	}
 }
 
 // GetBuffer returns a new buffer from the pool
-func (p *BodyBufferPool) GetBuffer() *bytes.Buffer {
+func (p *BodyBufferPool) GetBuffer() *BodyBuffer {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	// Ensure pool has capacity by removing old buffers if needed
-	p.ensureCapacity(p.maxBufferSize)
+	p.ensureCapacity()
+
+	// Reserve space for the new buffer until it is fully consumed / closed and we know the actual size
+	p.reservedSpace += p.maxBufferSize
 
 	// Create a new buffer
-	buf := &bytes.Buffer{}
+	buf := &BodyBuffer{
+		Buffer:    new(bytes.Buffer),
+		timestamp: time.Now().Unix(),
+	}
 
 	// Track this buffer
-	p.buffers = append(p.buffers, &bodyBuffer{
-		buffer:    buf,
-		timestamp: time.Now().Unix(),
-		size:      0,
-	})
+	p.buffers = append(p.buffers, buf)
 
 	return buf
 }
 
-// RegisterBuffer adds a buffer to the pool's tracking
-func (p *BodyBufferPool) RegisterBuffer(buf *bytes.Buffer, size int64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Update pool size
-	atomic.AddInt64(&p.currentSize, size)
-
-	// Find if the buffer is already tracked
-	for i, b := range p.buffers {
-		if b.buffer == buf {
-			// Update existing entry
-			p.buffers[i].size = size
-			p.buffers[i].timestamp = time.Now().Unix()
-			return
-		}
-	}
-
-	// Add buffer to tracking if not found
-	p.buffers = append(p.buffers, &bodyBuffer{
-		buffer:    buf,
-		timestamp: time.Now().Unix(),
-		size:      size,
-	})
-}
-
 // ensureCapacity ensures the pool has enough capacity by removing old buffers
-func (p *BodyBufferPool) ensureCapacity(needed int64) {
+func (p *BodyBufferPool) ensureCapacity() {
 	// If we have enough capacity, return
-	if atomic.LoadInt64(&p.currentSize)+needed <= p.maxPoolSize {
+	needed := p.maxBufferSize
+	if p.currentSize+p.reservedSpace+needed <= p.maxPoolSize {
 		return
 	}
 
-	// Sort buffers by timestamp (oldest first)
-	sort.Slice(p.buffers, func(i, j int) bool {
-		return p.buffers[i].timestamp < p.buffers[j].timestamp
-	})
-
 	// Remove oldest buffers until we have enough capacity
-	for i := 0; i < len(p.buffers) && atomic.LoadInt64(&p.currentSize)+needed > p.maxPoolSize; i++ {
-		// Skip if the buffer is already empty
-		if p.buffers[i].buffer.Len() == 0 {
+	removedBuffers := 0
+	for i := 0; i < len(p.buffers) && p.currentSize+p.reservedSpace+needed > p.maxPoolSize; i++ {
+		buf := p.buffers[i]
+
+		// Skip if the buffer is already empty or not finished
+		if buf.Buffer == nil || !buf.finished || buf.Len() == 0 {
 			continue
 		}
 
+		size := int64(buf.Len())
 		// Subtract buffer size from pool size
-		size := p.buffers[i].size
-		atomic.AddInt64(&p.currentSize, -size)
+		p.currentSize -= size
 
-		// Clear buffer to free memory
-		p.buffers[i].buffer.Reset()
-		p.buffers[i].size = 0
+		// Remove buffer reference
+		buf.Buffer = nil
+		removedBuffers++
 	}
+
+	// Remove nil buffers from the slice
+	p.buffers = make([]*BodyBuffer, 0, len(p.buffers)-removedBuffers)
+	for _, buf := range p.buffers {
+		if buf.Buffer == nil {
+			continue
+		}
+		p.buffers = append(p.buffers, buf)
+	}
+}
+
+func (p *BodyBufferPool) GetCurrentSize() int64 {
+	return atomic.LoadInt64(&p.currentSize)
 }
 
 // Body represents a captured HTTP request or response body
 type Body struct {
 	reader           io.ReadCloser // Original body reader
-	buffer           *bytes.Buffer // Buffer to capture body
+	buffer           *BodyBuffer   // Buffer to capture body
 	pool             *BodyBufferPool
 	maxSize          int64
 	size             int64
@@ -170,7 +158,7 @@ func NewBody(rc io.ReadCloser, pool *BodyBufferPool) *Body {
 	}
 }
 
-// Read reads from the original body while also capturing to the buffer
+// 2. Modify Body.Read to update pool size in real-time
 func (b *Body) Read(p []byte) (n int, err error) {
 	if b == nil || b.reader == nil {
 		return 0, io.EOF
@@ -188,6 +176,7 @@ func (b *Body) Read(p []byte) (n int, err error) {
 
 	if n > 0 {
 		b.mu.Lock()
+
 		// Only write to buffer if we haven't exceeded max size
 		if b.size < b.maxSize {
 			// Determine how much we can write without exceeding max size
@@ -203,6 +192,7 @@ func (b *Body) Read(p []byte) (n int, err error) {
 				b.size += int64(toWrite)
 			}
 		}
+
 		b.mu.Unlock()
 	}
 
@@ -210,7 +200,14 @@ func (b *Body) Read(p []byte) (n int, err error) {
 	if err == io.EOF {
 		b.mu.Lock()
 		b.consumedOriginal = true
+		b.buffer.finished = true
 		b.mu.Unlock()
+
+		// Update pool size with the captured size and remove reserved space
+		b.pool.mu.Lock()
+		b.pool.currentSize += b.size
+		b.pool.reservedSpace -= b.pool.maxBufferSize
+		b.pool.mu.Unlock()
 	}
 
 	return n, err
@@ -293,41 +290,39 @@ func (b *Body) Close() error {
 	// Mark as fully captured
 	b.mu.Lock()
 	b.isFullyCaptured = true
+	b.buffer.finished = true
 	b.mu.Unlock()
-
-	// Update pool with final buffer size
-	b.pool.RegisterBuffer(b.buffer, b.size)
 
 	return err
 }
 
 // String returns the body content as a string
 func (b *Body) String() string {
-	if b == nil || b.buffer == nil {
+	if b == nil || b.buffer.Buffer == nil {
 		return ""
 	}
 
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	return b.buffer.String()
+	return b.buffer.Buffer.String()
 }
 
 // Bytes returns the body content as a byte slice
 func (b *Body) Bytes() []byte {
-	if b == nil || b.buffer == nil {
+	if b == nil || b.buffer.Buffer == nil {
 		return nil
 	}
 
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	return b.buffer.Bytes()
+	return b.buffer.Buffer.Bytes()
 }
 
 // Size returns the captured size of the body
 func (b *Body) Size() int64 {
-	if b == nil {
+	if b == nil || b.buffer.Buffer == nil {
 		return 0
 	}
 

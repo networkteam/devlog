@@ -1,7 +1,6 @@
 package collector_test
 
 import (
-	"bytes"
 	"io"
 	"strings"
 	"testing"
@@ -82,7 +81,7 @@ func TestBodyBufferPool_EnsureCapacity(t *testing.T) {
 	pool := collector.NewBodyBufferPool(maxPoolSize, maxBodySize)
 
 	// Create buffers that will fit in the pool
-	buffers := make([]*bytes.Buffer, 0)
+	buffers := make([]*collector.BodyBuffer, 0)
 
 	// Add 5 buffers of 100 bytes each (total 500 bytes)
 	for i := 0; i < 5; i++ {
@@ -92,9 +91,6 @@ func TestBodyBufferPool_EnsureCapacity(t *testing.T) {
 		// Fill with 100 bytes of data
 		data := strings.Repeat("a", 100)
 		buffer.WriteString(data)
-
-		// Register with the pool
-		pool.RegisterBuffer(buffer, int64(buffer.Len()))
 
 		buffers = append(buffers, buffer)
 
@@ -110,7 +106,6 @@ func TestBodyBufferPool_EnsureCapacity(t *testing.T) {
 	// Add one more large buffer that will trigger garbage collection
 	buffer := pool.GetBuffer()
 	buffer.WriteString(strings.Repeat("b", 600)) // 600 bytes
-	pool.RegisterBuffer(buffer, int64(buffer.Len()))
 
 	// The newest buffer should have data
 	assert.Equal(t, 600, buffer.Len())
@@ -119,4 +114,51 @@ func TestBodyBufferPool_EnsureCapacity(t *testing.T) {
 	// This is difficult to test directly without exposing pool internals
 	// But we can verify the latest buffer is intact
 	assert.Equal(t, strings.Repeat("b", 600), buffer.String())
+}
+
+func TestBody_IOReadAllWithoutClose(t *testing.T) {
+	pool := collector.NewBodyBufferPool(100, 50)
+
+	testData := strings.Repeat("X", 30) // 30 bytes
+	testReader := io.NopCloser(strings.NewReader(testData))
+	body := collector.NewBody(testReader, pool)
+
+	// Some clients do io.ReadAll without Close()
+	data, err := io.ReadAll(body)
+	require.NoError(t, err)
+	assert.Equal(t, testData, string(data))
+
+	// Ensure pool tracks size even without Close()
+	currentSize := pool.GetCurrentSize()
+	assert.Equal(t, int64(30), currentSize, "Pool should track buffer size without Close()")
+}
+
+func TestBody_PoolCapacityEnforcement_Multiple_ReadAll(t *testing.T) {
+	pool := collector.NewBodyBufferPool(100, 50) // Small pool to force cleanup
+
+	var bodies []*collector.Body
+
+	// Create bodies that exceed pool capacity
+	for i := 0; i < 5; i++ {
+		testData := strings.Repeat("A", 40) // 40 bytes each
+		testReader := io.NopCloser(strings.NewReader(testData))
+		body := collector.NewBody(testReader, pool)
+
+		_, err := io.ReadAll(body) // Only consume data, do not close bodies
+		// TODO Add test with partial consumption of bodies
+		require.NoError(t, err)
+
+		bodies = append(bodies, body)
+	}
+
+	poolBytesLen := 0
+	bodySizes := 0
+	for _, body := range bodies {
+		poolBytesLen += len(body.Bytes())
+		bodySizes += int(body.Size())
+	}
+
+	// Ensure bodies are cleaned up
+	assert.LessOrEqual(t, poolBytesLen, 100, "Some bodies should be cleaned up when pool exceeds capacity")
+	assert.LessOrEqual(t, bodySizes, 100, "Total body sizes should not exceed pool capacity")
 }
