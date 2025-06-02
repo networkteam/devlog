@@ -43,7 +43,7 @@ type HTTPServerRequestTransformer func(HTTPServerRequest) HTTPServerRequest
 // DefaultHTTPServerOptions returns default options for the HTTP server collector
 func DefaultHTTPServerOptions() HTTPServerOptions {
 	return HTTPServerOptions{
-		MaxBodyBufferPool:   DefaultBodyBufferSize,
+		MaxBodyBufferPool:   DefaultBodyBufferPoolSize,
 		MaxBodySize:         DefaultMaxBodySize,
 		CaptureRequestBody:  true,
 		CaptureResponseBody: true,

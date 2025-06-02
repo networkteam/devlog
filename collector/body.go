@@ -11,8 +11,8 @@ import (
 
 // Constants for body capture
 const (
-	// DefaultBodyBufferSize is the default size of the buffer pool
-	DefaultBodyBufferSize = 100 * 1024 * 1024 // 100MB
+	// DefaultBodyBufferPoolSize is the default size of the buffer pool (max size of all bodies combined to store)
+	DefaultBodyBufferPoolSize = 100 * 1024 * 1024 // 100MB
 
 	// DefaultMaxBodySize is the default maximum size for a single body
 	DefaultMaxBodySize = 1 * 1024 * 1024 // 1MB
@@ -46,7 +46,7 @@ type BodyBuffer struct {
 func NewBodyBufferPool(maxPoolSize, maxBufferSize int64) *BodyBufferPool {
 	// Ensure positive sizes
 	if maxPoolSize <= 0 {
-		maxPoolSize = DefaultBodyBufferSize
+		maxPoolSize = DefaultBodyBufferPoolSize
 	}
 	if maxBufferSize <= 0 {
 		maxBufferSize = DefaultMaxBodySize

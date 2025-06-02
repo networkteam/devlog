@@ -37,7 +37,7 @@ type HTTPClientRequestTransformer func(HTTPClientRequest) HTTPClientRequest
 // DefaultHTTPClientOptions returns default options for the HTTP client collector
 func DefaultHTTPClientOptions() HTTPClientOptions {
 	return HTTPClientOptions{
-		MaxBodyBufferPool:   DefaultBodyBufferSize,
+		MaxBodyBufferPool:   DefaultBodyBufferPoolSize,
 		MaxBodySize:         DefaultMaxBodySize,
 		CaptureRequestBody:  true,
 		CaptureResponseBody: true,
