@@ -144,8 +144,44 @@ func TestBody_PoolCapacityEnforcement_Multiple_ReadAll(t *testing.T) {
 		testReader := io.NopCloser(strings.NewReader(testData))
 		body := collector.NewBody(testReader, pool)
 
-		_, err := io.ReadAll(body) // Only consume data, do not close bodies
-		// TODO Add test with partial consumption of bodies
+		// Consume all data, do not close
+		_, err := io.ReadAll(body)
+		require.NoError(t, err)
+
+		bodies = append(bodies, body)
+	}
+
+	poolBytesLen := 0
+	bodySizes := 0
+	for _, body := range bodies {
+		poolBytesLen += len(body.Bytes())
+		bodySizes += int(body.Size())
+	}
+
+	// Ensure bodies are cleaned up
+	assert.LessOrEqual(t, poolBytesLen, 100, "Some bodies should be cleaned up when pool exceeds capacity")
+	assert.LessOrEqual(t, bodySizes, 100, "Total body sizes should not exceed pool capacity")
+}
+
+func TestBody_PoolCapacityEnforcement_Multiple_Read_Close(t *testing.T) {
+	pool := collector.NewBodyBufferPool(100, 50) // Small pool to force cleanup
+
+	var bodies []*collector.Body
+
+	// Create bodies that exceed pool capacity
+	buf := make([]byte, 30)
+	for i := 0; i < 5; i++ {
+		testData := strings.Repeat("A", 40) // 40 bytes each
+		testReader := io.NopCloser(strings.NewReader(testData))
+		body := collector.NewBody(testReader, pool)
+
+		// Only read a part of the body
+		n, err := body.Read(buf)
+		require.NoError(t, err)
+		assert.Equal(t, 30, n)
+
+		// Then close the body
+		err = body.Close()
 		require.NoError(t, err)
 
 		bodies = append(bodies, body)
