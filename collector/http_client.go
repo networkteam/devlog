@@ -208,3 +208,8 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 	return resp, err
 }
+
+// Unwrap returns the underlying http.RoundTripper
+func (t *httpClientTransport) Unwrap() http.RoundTripper {
+	return t.next
+}
