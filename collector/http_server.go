@@ -74,8 +74,13 @@ func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOption
 		notifierOptions = *options.NotifierOptions
 	}
 
+	buffer := NewRingBuffer[HTTPServerRequest](capacity)
+	buffer.OnFree = func(record HTTPServerRequest) {
+		record.free()
+	}
+
 	return &HTTPServerCollector{
-		buffer:         NewRingBuffer[HTTPServerRequest](capacity),
+		buffer:         buffer,
 		bodyPool:       NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
 		options:        options,
 		notifier:       NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
@@ -262,9 +267,11 @@ func (crw *captureResponseWriter) Write(b []byte) (int, error) {
 			}
 
 			if toWrite > 0 {
+				crw.body.buffer.mu.Lock()
 				// Write to the buffer directly
 				crw.body.buffer.Write(b[:toWrite])
 				crw.body.size += int64(toWrite)
+				crw.body.buffer.mu.Unlock()
 			}
 		}
 		crw.body.mu.Unlock()

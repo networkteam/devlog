@@ -67,8 +67,13 @@ func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOption
 		notifierOptions = *options.NotifierOptions
 	}
 
+	buffer := NewRingBuffer[HTTPClientRequest](capacity)
+	buffer.OnFree = func(record HTTPClientRequest) {
+		record.free()
+	}
+
 	return &HTTPClientCollector{
-		buffer:         NewRingBuffer[HTTPClientRequest](capacity),
+		buffer:         buffer,
 		bodyPool:       NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
 		options:        options,
 		notifier:       NewNotifierWithOptions[HTTPClientRequest](notifierOptions),

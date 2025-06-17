@@ -17,6 +17,7 @@ type LookupRingBuffer[T Visitable[S, T], S comparable] struct {
 	capacity   uint64
 	writeIndex uint64
 	mu         sync.RWMutex
+	OnFree     func(record T)
 }
 
 // NewLookupRingBuffer creates a new ring buffer with the given capacity
@@ -56,6 +57,9 @@ func (rb *LookupRingBuffer[T, S]) Add(record T) {
 		for id := range lostRecord.Visit() {
 			// Remove the old entries from the lookup map
 			delete(rb.lookup, id)
+		}
+		if rb.OnFree != nil {
+			rb.OnFree(lostRecord)
 		}
 	}
 

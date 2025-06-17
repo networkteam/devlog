@@ -9,6 +9,8 @@ type RingBuffer[T any] struct {
 	capacity   uint64
 	writeIndex uint64
 	mu         sync.RWMutex
+	// OnFree is an optional callback when an entry is freed
+	OnFree func(record T)
 }
 
 // NewRingBuffer creates a new ring buffer with the given capacity
@@ -31,6 +33,7 @@ func (rb *RingBuffer[T]) Add(record T) {
 	defer rb.mu.Unlock()
 
 	// Write at current position
+	prevRecord := rb.buffer[rb.writeIndex%rb.capacity]
 	rb.buffer[rb.writeIndex%rb.capacity] = record
 
 	// Increment write index
@@ -39,6 +42,10 @@ func (rb *RingBuffer[T]) Add(record T) {
 	// Update size (up to capacity)
 	if rb.size < rb.capacity {
 		rb.size++
+	} else {
+		if rb.OnFree != nil {
+			rb.OnFree(prevRecord)
+		}
 	}
 }
 

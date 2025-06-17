@@ -39,8 +39,13 @@ func NewEventCollectorWithOptions(capacity uint64, options EventOptions) *EventC
 		notifierOptions = *options.NotifierOptions
 	}
 
+	buffer := NewLookupRingBuffer[*Event, uuid.UUID](capacity)
+	buffer.OnFree = func(record *Event) {
+		record.free()
+	}
+
 	return &EventCollector{
-		buffer:     NewLookupRingBuffer[*Event, uuid.UUID](capacity),
+		buffer:     buffer,
 		openGroups: make(map[uuid.UUID]*Event),
 		notifier:   NewNotifierWithOptions[Event](notifierOptions),
 	}
@@ -200,4 +205,13 @@ func (e *Event) visitInternal(yield func(uuid.UUID, *Event) bool) bool {
 		}
 	}
 	return true
+}
+
+func (e *Event) free() {
+	if freer, ok := e.Data.(interface{ free() }); ok {
+		freer.free()
+	}
+	for _, child := range e.Children {
+		child.free()
+	}
 }

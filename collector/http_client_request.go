@@ -31,6 +31,15 @@ func (r HTTPClientRequest) Duration() time.Duration {
 	return r.ResponseTime.Sub(r.RequestTime)
 }
 
+func (r HTTPClientRequest) free() {
+	if r.RequestBody != nil {
+		r.RequestBody.free()
+	}
+	if r.ResponseBody != nil {
+		r.ResponseBody.free()
+	}
+}
+
 func generateID() uuid.UUID {
 	return uuid.Must(uuid.NewV7())
 }

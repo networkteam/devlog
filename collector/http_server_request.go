@@ -32,3 +32,12 @@ type HTTPServerRequest struct {
 func (r HTTPServerRequest) Duration() time.Duration {
 	return r.ResponseTime.Sub(r.RequestTime)
 }
+
+func (r HTTPServerRequest) free() {
+	if r.RequestBody != nil {
+		r.RequestBody.free()
+	}
+	if r.ResponseBody != nil {
+		r.ResponseBody.free()
+	}
+}

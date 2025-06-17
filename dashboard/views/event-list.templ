@@ -50,7 +50,7 @@ templ EventList(props EventListProps) {
 
 templ EventListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     switch event.Data.(type) {
-    case collector.HTTPRequest:
+    case collector.HTTPClientRequest:
         @HTTPRequestListItem(event, selectedEventID)
     case collector.HTTPServerRequest:
         @HTTPServerRequestListItem(event, selectedEventID)
@@ -93,7 +93,7 @@ templ tagList(tags map[string]string) {
 }
 
 templ HTTPRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
-    {{ request := event.Data.(collector.HTTPRequest) }}
+    {{ request := event.Data.(collector.HTTPClientRequest) }}
     {{ parsedURL, _ := url.Parse(request.URL) }}
     <li>
         @linkListItem(event, selectedEventID) {
