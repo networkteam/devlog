@@ -63,6 +63,7 @@ func NewLogCollectorWithOptions(capacity uint64, options LogOptions) *LogCollect
 // Close releases resources used by the collector
 func (c *LogCollector) Close() {
 	c.notifier.Close()
+	c.buffer = nil
 }
 
 type CollectSlogLogsOptions struct {

@@ -40,15 +40,14 @@ func NewEventCollectorWithOptions(capacity uint64, options EventOptions) *EventC
 	}
 
 	buffer := NewLookupRingBuffer[*Event, uuid.UUID](capacity)
-	buffer.OnFree = func(record *Event) {
-		record.free()
-	}
 
-	return &EventCollector{
+	c := &EventCollector{
 		buffer:     buffer,
 		openGroups: make(map[uuid.UUID]*Event),
 		notifier:   NewNotifierWithOptions[Event](notifierOptions),
 	}
+
+	return c
 }
 
 func groupIDFromContext(ctx context.Context) (uuid.UUID, bool) {
@@ -173,6 +172,7 @@ func (c *EventCollector) Subscribe(ctx context.Context) <-chan Event {
 // Close releases resources used by the collector
 func (c *EventCollector) Close() {
 	c.notifier.Close()
+	c.buffer = nil
 }
 
 type Event struct {
