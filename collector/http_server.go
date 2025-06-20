@@ -12,11 +12,8 @@ import (
 
 // HTTPServerOptions configures the HTTP server collector
 type HTTPServerOptions struct {
-	// MaxBodyBufferPool is the maximum size in bytes of the buffer pool
-	MaxBodyBufferPool int64
-
 	// MaxBodySize is the maximum size in bytes of a single body
-	MaxBodySize int64
+	MaxBodySize int
 
 	// CaptureRequestBody indicates whether to capture request bodies
 	CaptureRequestBody bool
@@ -43,7 +40,6 @@ type HTTPServerRequestTransformer func(HTTPServerRequest) HTTPServerRequest
 // DefaultHTTPServerOptions returns default options for the HTTP server collector
 func DefaultHTTPServerOptions() HTTPServerOptions {
 	return HTTPServerOptions{
-		MaxBodyBufferPool:   DefaultBodyBufferPoolSize,
 		MaxBodySize:         DefaultMaxBodySize,
 		CaptureRequestBody:  true,
 		CaptureResponseBody: true,
@@ -53,8 +49,8 @@ func DefaultHTTPServerOptions() HTTPServerOptions {
 
 // HTTPServerCollector collects incoming HTTP requests
 type HTTPServerCollector struct {
-	buffer         *RingBuffer[HTTPServerRequest]
-	bodyPool       *BodyBufferPool
+	buffer *RingBuffer[HTTPServerRequest]
+
 	options        HTTPServerOptions
 	notifier       *Notifier[HTTPServerRequest]
 	eventCollector *EventCollector
@@ -74,13 +70,16 @@ func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOption
 		notifierOptions = *options.NotifierOptions
 	}
 
-	return &HTTPServerCollector{
-		buffer:         NewRingBuffer[HTTPServerRequest](capacity),
-		bodyPool:       NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
+	buffer := NewRingBuffer[HTTPServerRequest](capacity)
+
+	collector := &HTTPServerCollector{
+		buffer:         buffer,
 		options:        options,
 		notifier:       NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
 		eventCollector: options.EventCollector,
 	}
+
+	return collector
 }
 
 // GetRequests returns the most recent n HTTP server requests
@@ -137,7 +136,7 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 			originalBody := r.Body
 
 			// Create a body wrapper
-			requestBody = NewBody(originalBody, c.bodyPool)
+			requestBody = NewBody(originalBody, c.options.MaxBodySize)
 
 			// Replace the request body with our wrapper
 			r.Body = requestBody
@@ -149,8 +148,7 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 		// Create a response writer wrapper to capture the response
 		crw := &captureResponseWriter{
 			ResponseWriter: w,
-			bodyPool:       c.bodyPool,
-			captureBody:    c.options.CaptureResponseBody,
+			collector:      c,
 		}
 
 		if c.eventCollector != nil {
@@ -201,6 +199,7 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 // Close releases resources used by the collector
 func (c *HTTPServerCollector) Close() {
 	c.notifier.Close()
+	c.buffer = nil
 }
 
 // captureResponseWriter is a wrapper for http.ResponseWriter that captures the response
@@ -208,10 +207,9 @@ type captureResponseWriter struct {
 	http.ResponseWriter
 	statusCode    int
 	body          *Body
-	bodyPool      *BodyBufferPool
-	captureBody   bool
 	wroteHeader   bool
 	bodyCapturing bool
+	collector     *HTTPServerCollector
 }
 
 // WriteHeader implements http.ResponseWriter
@@ -231,15 +229,10 @@ func (crw *captureResponseWriter) Write(b []byte) (int, error) {
 	}
 
 	// If we're capturing the body and haven't set up the body capture yet
-	if crw.captureBody && !crw.bodyCapturing {
+	if crw.collector.options.CaptureResponseBody && !crw.bodyCapturing {
+
 		// Create a buffer to capture the response body
-		buf := crw.bodyPool.GetBuffer()
-		crw.body = &Body{
-			buffer:          buf,
-			pool:            crw.bodyPool,
-			maxSize:         crw.bodyPool.maxBufferSize,
-			isFullyCaptured: true, // Since we're capturing directly, not via a reader
-		}
+		crw.body = NewBody(nil, crw.collector.options.MaxBodySize)
 		crw.bodyCapturing = true
 	}
 
@@ -250,24 +243,8 @@ func (crw *captureResponseWriter) Write(b []byte) (int, error) {
 	}
 
 	// If we're capturing the body, store a copy in our buffer
-	if crw.captureBody && crw.bodyCapturing && crw.body != nil {
-		crw.body.mu.Lock()
-		// Only write to buffer if we haven't exceeded max size
-		if crw.body.size < crw.body.maxSize {
-			// Determine how much we can write without exceeding max size
-			toWrite := n
-			if crw.body.size+int64(n) > crw.body.maxSize {
-				toWrite = int(crw.body.maxSize - crw.body.size)
-				crw.body.isTruncated = true
-			}
-
-			if toWrite > 0 {
-				// Write to the buffer directly
-				crw.body.buffer.Write(b[:toWrite])
-				crw.body.size += int64(toWrite)
-			}
-		}
-		crw.body.mu.Unlock()
+	if crw.collector.options.CaptureResponseBody && crw.bodyCapturing && crw.body != nil {
+		crw.body.buffer.Write(b[:n])
 	}
 
 	return n, nil

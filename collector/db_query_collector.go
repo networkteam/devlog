@@ -77,4 +77,5 @@ func NewDBQueryCollectorWithOptions(capacity uint64, options DBQueryOptions) *DB
 // Close releases resources used by the collector
 func (c *DBQueryCollector) Close() {
 	c.notifier.Close()
+	c.buffer = nil
 }

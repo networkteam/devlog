@@ -10,11 +10,8 @@ import (
 
 // HTTPClientOptions configures the HTTP client collector
 type HTTPClientOptions struct {
-	// MaxBodyBufferPool is the maximum size in bytes of the buffer pool
-	MaxBodyBufferPool int64
-
 	// MaxBodySize is the maximum size in bytes of a single body
-	MaxBodySize int64
+	MaxBodySize int
 
 	// CaptureRequestBody indicates whether to capture request bodies
 	CaptureRequestBody bool
@@ -37,7 +34,6 @@ type HTTPClientRequestTransformer func(HTTPClientRequest) HTTPClientRequest
 // DefaultHTTPClientOptions returns default options for the HTTP client collector
 func DefaultHTTPClientOptions() HTTPClientOptions {
 	return HTTPClientOptions{
-		MaxBodyBufferPool:   DefaultBodyBufferPoolSize,
 		MaxBodySize:         DefaultMaxBodySize,
 		CaptureRequestBody:  true,
 		CaptureResponseBody: true,
@@ -46,8 +42,8 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 
 // HTTPClientCollector collects outgoing HTTP requests
 type HTTPClientCollector struct {
-	buffer         *RingBuffer[HTTPClientRequest]
-	bodyPool       *BodyBufferPool
+	buffer *RingBuffer[HTTPClientRequest]
+
 	options        HTTPClientOptions
 	notifier       *Notifier[HTTPClientRequest]
 	eventCollector *EventCollector
@@ -67,13 +63,16 @@ func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOption
 		notifierOptions = *options.NotifierOptions
 	}
 
-	return &HTTPClientCollector{
-		buffer:         NewRingBuffer[HTTPClientRequest](capacity),
-		bodyPool:       NewBodyBufferPool(options.MaxBodyBufferPool, options.MaxBodySize),
+	buffer := NewRingBuffer[HTTPClientRequest](capacity)
+
+	collector := &HTTPClientCollector{
+		buffer:         buffer,
 		options:        options,
 		notifier:       NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
 		eventCollector: options.EventCollector,
 	}
+
+	return collector
 }
 
 // Transport returns an http.RoundTripper that captures request/response data
@@ -107,6 +106,7 @@ func (c *HTTPClientCollector) Add(req HTTPClientRequest) {
 // Close releases resources used by the collector
 func (c *HTTPClientCollector) Close() {
 	c.notifier.Close()
+	c.buffer = nil
 }
 
 // httpClientTransport is an http.RoundTripper that captures HTTP request/response data
@@ -140,7 +140,7 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	// Capture request body if present and configured to do so
 	if req.Body != nil && t.collector.options.CaptureRequestBody {
 		// Wrap the body to capture it
-		body := NewBody(req.Body, t.collector.bodyPool)
+		body := NewBody(req.Body, t.collector.options.MaxBodySize)
 
 		// Store the body in the request record
 		httpReq.RequestBody = body
@@ -183,7 +183,7 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			originalRespBody := resp.Body
 
 			// Wrap the body to capture it
-			body := NewBody(originalRespBody, t.collector.bodyPool)
+			body := NewBody(originalRespBody, t.collector.options.MaxBodySize)
 
 			// Store the body in the request record
 			httpReq.ResponseBody = body

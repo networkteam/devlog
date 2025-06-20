@@ -65,7 +65,7 @@ templ EventDetailContainer(event *collector.Event) {
 // Dispatcher for different event types
 templ EventDetails(event *collector.Event) {
     switch data := event.Data.(type) {
-    case collector.HTTPRequest:
+    case collector.HTTPClientRequest:
         @HTTPRequestDetails(event, data)
     case collector.HTTPServerRequest:
         @HTTPServerRequestDetails(event, data)
@@ -83,7 +83,7 @@ templ EventDetails(event *collector.Event) {
 }
 
 // HTTP Client Request Details
-templ HTTPRequestDetails(event *collector.Event, request collector.HTTPRequest) {
+templ HTTPRequestDetails(event *collector.Event, request collector.HTTPClientRequest) {
     {{ parsedURL, _ := url.Parse(request.URL) }}
     {{ duration := request.Duration() }}
     <div class="p-4">

@@ -27,6 +27,10 @@ func NewRingBuffer[T any](capacity uint64) *RingBuffer[T] {
 
 // Add adds an entry to the buffer
 func (rb *RingBuffer[T]) Add(record T) {
+	if rb == nil {
+		return
+	}
+
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 
@@ -44,6 +48,10 @@ func (rb *RingBuffer[T]) Add(record T) {
 
 // GetRecords returns a slice of the most recent n records
 func (rb *RingBuffer[T]) GetRecords(n uint64) []T {
+	if rb == nil {
+		return nil
+	}
+
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
 
