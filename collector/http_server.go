@@ -70,13 +70,13 @@ func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOption
 		notifierOptions = *options.NotifierOptions
 	}
 
-	buffer := NewRingBuffer[HTTPServerRequest](capacity)
-
 	collector := &HTTPServerCollector{
-		buffer:         buffer,
 		options:        options,
 		notifier:       NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
 		eventCollector: options.EventCollector,
+	}
+	if capacity > 0 {
+		collector.buffer = NewRingBuffer[HTTPServerRequest](capacity)
 	}
 
 	return collector
@@ -84,6 +84,9 @@ func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOption
 
 // GetRequests returns the most recent n HTTP server requests
 func (c *HTTPServerCollector) GetRequests(n uint64) []HTTPServerRequest {
+	if c.buffer == nil {
+		return nil
+	}
 	return c.buffer.GetRecords(n)
 }
 
@@ -94,7 +97,9 @@ func (c *HTTPServerCollector) Subscribe(ctx context.Context) <-chan HTTPServerRe
 
 // Add adds an HTTP server request to the collector
 func (c *HTTPServerCollector) Add(req HTTPServerRequest) {
-	c.buffer.Add(req)
+	if c.buffer != nil {
+		c.buffer.Add(req)
+	}
 	c.notifier.Notify(req)
 }
 

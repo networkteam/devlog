@@ -84,3 +84,15 @@ func (rb *RingBuffer[T]) Size() uint64 {
 func (rb *RingBuffer[T]) Capacity() uint64 {
 	return rb.capacity
 }
+
+func (rb *RingBuffer[T]) Clear() {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+
+	// Set all entries in the buffer to their zero value
+	for i := range rb.buffer {
+		var item T
+		rb.buffer[i] = item
+	}
+	rb.size = 0
+}

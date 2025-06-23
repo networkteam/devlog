@@ -63,13 +63,13 @@ func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOption
 		notifierOptions = *options.NotifierOptions
 	}
 
-	buffer := NewRingBuffer[HTTPClientRequest](capacity)
-
 	collector := &HTTPClientCollector{
-		buffer:         buffer,
 		options:        options,
 		notifier:       NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
 		eventCollector: options.EventCollector,
+	}
+	if capacity > 0 {
+		collector.buffer = NewRingBuffer[HTTPClientRequest](capacity)
 	}
 
 	return collector
@@ -89,6 +89,9 @@ func (c *HTTPClientCollector) Transport(next http.RoundTripper) http.RoundTrippe
 
 // GetRequests returns the most recent n HTTP requests
 func (c *HTTPClientCollector) GetRequests(n uint64) []HTTPClientRequest {
+	if c.buffer == nil {
+		return nil
+	}
 	return c.buffer.GetRecords(n)
 }
 
@@ -99,7 +102,9 @@ func (c *HTTPClientCollector) Subscribe(ctx context.Context) <-chan HTTPClientRe
 
 // Add adds an HTTP request to the collector
 func (c *HTTPClientCollector) Add(req HTTPClientRequest) {
-	c.buffer.Add(req)
+	if c.buffer != nil {
+		c.buffer.Add(req)
+	}
 	c.notifier.Notify(req)
 }
 

@@ -17,7 +17,6 @@ import (
 type EventListProps struct {
     SelectedEventID *uuid.UUID
     Events []*collector.Event
-    TruncateAfter int
 }
 
 templ EventList(props EventListProps) {
@@ -28,7 +27,7 @@ templ EventList(props EventListProps) {
         sse-connect={fmt.Sprintf("%s/events-sse", MustGetHandlerOptions(ctx).PathPrefix)}
         sse-swap="new-event"
         hx-swap="afterbegin"
-        data-truncate-after={ props.TruncateAfter }
+        data-truncate-after={ MustGetHandlerOptions(ctx).TruncateAfter }
         hx-on:htmx:after-swap="
             // Limit number of elements in list
             const limit = this.dataset.truncateAfter;

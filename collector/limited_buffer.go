@@ -2,7 +2,6 @@ package collector
 
 import (
 	"bytes"
-	"sync"
 )
 
 // LimitedBuffer is a buffer that only writes up to a certain size
@@ -65,9 +64,4 @@ func (b *LimitedBuffer) String() string {
 // If the buffer was truncated, it will not include the truncated data.
 func (b *LimitedBuffer) Bytes() []byte {
 	return b.Buffer.Bytes()
-}
-
-type LimitedBufferPool struct {
-	pool  sync.Pool
-	limit int
 }

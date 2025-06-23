@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 
 	"github.com/a-h/templ"
@@ -17,7 +18,8 @@ import (
 type Handler struct {
 	eventCollector *collector.EventCollector
 
-	pathPrefix string
+	pathPrefix    string
+	truncateAfter uint64
 
 	mux http.Handler
 }
@@ -27,24 +29,32 @@ type HandlerOptions struct {
 
 	// PathPrefix where the Handler is mounted (e.g. "/_devlog"), can be left empty if the Handler is at the root ("/").
 	PathPrefix string
+	// TruncateAfter is the maximum number of events to show in the event list and dashboard. If 0 or larger than the event collector capacity, it will use the collector's capacity.
+	TruncateAfter uint64
 }
 
 func NewHandler(options HandlerOptions) *Handler {
 	mux := http.NewServeMux()
+	if options.TruncateAfter == 0 || options.TruncateAfter > options.EventCollector.Capacity() {
+		options.TruncateAfter = options.EventCollector.Capacity()
+	}
+
 	handler := &Handler{
 		eventCollector: options.EventCollector,
+		truncateAfter:  options.TruncateAfter,
 
 		pathPrefix: options.PathPrefix,
 
 		mux: setHandlerOptions(options, mux),
 	}
 
-	mux.HandleFunc("/", handler.root)
-	mux.HandleFunc("/event-list", handler.getEventList)
-	mux.HandleFunc("/event/{eventId}", handler.getEventDetails)
-	mux.HandleFunc("/events-sse", handler.getEventsSSE)
-	mux.HandleFunc("/download/request-body/{eventId}", handler.downloadRequestBody)
-	mux.HandleFunc("/download/response-body/{eventId}", handler.downloadResponseBody)
+	mux.HandleFunc("GET /{$}", handler.root)
+	mux.HandleFunc("GET /event-list", handler.getEventList)
+	mux.HandleFunc("DELETE /event-list", handler.clearEventList)
+	mux.HandleFunc("GET /event/{eventId}", handler.getEventDetails)
+	mux.HandleFunc("GET /events-sse", handler.getEventsSSE)
+	mux.HandleFunc("GET /download/request-body/{eventId}", handler.downloadRequestBody)
+	mux.HandleFunc("GET /download/response-body/{eventId}", handler.downloadResponseBody)
 
 	mux.Handle("/static/", http.StripPrefix("/static", http.FileServerFS(static.Assets)))
 
@@ -55,7 +65,8 @@ func setHandlerOptions(options HandlerOptions, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		ctx = views.WithHandlerOptions(ctx, views.HandlerOptions{
-			PathPrefix: options.PathPrefix,
+			PathPrefix:    options.PathPrefix,
+			TruncateAfter: options.TruncateAfter,
 		})
 		r = r.WithContext(ctx)
 
@@ -85,17 +96,18 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	recentEvents, limit := h.loadRecentEvents()
+	recentEvents := h.loadRecentEvents()
 
-	templ.Handler(views.Dashboard(views.DashboardProps{
-		SelectedEvent: selectedEvent,
-		Events:        recentEvents,
-		TruncateAfter: limit,
-	})).ServeHTTP(w, r)
+	templ.Handler(
+		views.Dashboard(views.DashboardProps{
+			SelectedEvent: selectedEvent,
+			Events:        recentEvents,
+		}),
+	).ServeHTTP(w, r)
 }
 
 func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
-	recentEvents, limit := h.loadRecentEvents()
+	recentEvents := h.loadRecentEvents()
 
 	selectedStr := r.URL.Query().Get("selected")
 	var selectedEventID *uuid.UUID
@@ -106,11 +118,36 @@ func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	templ.Handler(views.EventList(views.EventListProps{
-		Events:          recentEvents,
-		SelectedEventID: selectedEventID,
-		TruncateAfter:   limit,
-	})).ServeHTTP(w, r)
+	templ.Handler(
+		views.EventList(views.EventListProps{
+			Events:          recentEvents,
+			SelectedEventID: selectedEventID,
+		}),
+	).ServeHTTP(w, r)
+}
+
+func (h *Handler) clearEventList(w http.ResponseWriter, r *http.Request) {
+	h.eventCollector.Clear()
+
+	// Check if there's an id parameter in the current URL that needs to be removed to unselect an event
+	currentURL, _ := url.Parse(r.Header.Get("HX-Current-URL"))
+	if currentURL != nil && currentURL.Query().Get("id") != "" {
+		// Build URL preserving all query parameters except 'id'
+		query := r.URL.Query()
+		query.Del("id")
+
+		redirectURL := fmt.Sprintf("%s/", h.pathPrefix)
+		if len(query) > 0 {
+			redirectURL += "?" + query.Encode()
+		}
+
+		// Use HTMX header to update the URL client-side without the id parameter
+		w.Header().Set("HX-Push-Url", redirectURL)
+	}
+
+	templ.Handler(
+		views.SplitLayout(views.EventList(views.EventListProps{}), views.EventDetailContainer(nil)),
+	).ServeHTTP(w, r)
 }
 
 func (h *Handler) getEventDetails(w http.ResponseWriter, r *http.Request) {
@@ -121,15 +158,15 @@ func (h *Handler) getEventDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO We need to handle nested events somehow
-
 	event, exists := h.eventCollector.GetEvent(eventID)
 	if !exists {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
 
-	templ.Handler(views.EventDetailContainer(event)).ServeHTTP(w, r)
+	templ.Handler(
+		views.EventDetailContainer(event),
+	).ServeHTTP(w, r)
 }
 
 // getEventsSSE handles SSE connections for real-time log updates
@@ -180,12 +217,11 @@ func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) loadRecentEvents() ([]*collector.Event, int) {
-	const limit = 100
-	recentEvents := h.eventCollector.GetEvents(limit)
+func (h *Handler) loadRecentEvents() []*collector.Event {
+	recentEvents := h.eventCollector.GetEvents(h.truncateAfter)
 	slices.Reverse(recentEvents)
 
-	return recentEvents, limit
+	return recentEvents
 }
 
 // downloadRequestBody handles downloading the request body for an event

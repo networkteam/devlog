@@ -39,12 +39,12 @@ func NewEventCollectorWithOptions(capacity uint64, options EventOptions) *EventC
 		notifierOptions = *options.NotifierOptions
 	}
 
-	buffer := NewLookupRingBuffer[*Event, uuid.UUID](capacity)
-
 	c := &EventCollector{
-		buffer:     buffer,
 		openGroups: make(map[uuid.UUID]*Event),
 		notifier:   NewNotifierWithOptions[Event](notifierOptions),
+	}
+	if capacity > 0 {
+		c.buffer = NewLookupRingBuffer[*Event, uuid.UUID](capacity)
 	}
 
 	return c
@@ -92,7 +92,9 @@ func (c *EventCollector) CollectEvent(ctx context.Context, data any) {
 
 	// Add the event to the buffer if it is top-level
 	if evt.GroupID == nil {
-		c.buffer.Add(evt)
+		if c.buffer != nil {
+			c.buffer.Add(evt)
+		}
 		c.notifier.Notify(*evt)
 	}
 }
@@ -151,16 +153,24 @@ func (c *EventCollector) EndEvent(ctx context.Context, data any) {
 
 	// Add the event to the buffer if it is top-level
 	if evt.GroupID == nil {
-		c.buffer.Add(evt)
+		if c.buffer != nil {
+			c.buffer.Add(evt)
+		}
 		c.notifier.Notify(*evt)
 	}
 }
 
 func (c *EventCollector) GetEvents(n uint64) []*Event {
+	if c.buffer == nil {
+		return nil
+	}
 	return c.buffer.GetRecords(n)
 }
 
 func (c *EventCollector) GetEvent(id uuid.UUID) (*Event, bool) {
+	if c.buffer == nil {
+		return nil, false
+	}
 	return c.buffer.Lookup(id)
 }
 
@@ -173,6 +183,20 @@ func (c *EventCollector) Subscribe(ctx context.Context) <-chan Event {
 func (c *EventCollector) Close() {
 	c.notifier.Close()
 	c.buffer = nil
+}
+
+func (c *EventCollector) Clear() {
+	if c.buffer == nil {
+		return
+	}
+	c.buffer.Clear()
+}
+
+func (c *EventCollector) Capacity() uint64 {
+	if c.buffer == nil {
+		return 0
+	}
+	return c.buffer.Capacity()
 }
 
 type Event struct {

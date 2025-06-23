@@ -27,28 +27,28 @@ func (i *Instance) Close() {
 
 type Options struct {
 	// LogCapacity is the maximum number of log entries to keep.
-	// Default: 1000
+	// Default: 0
 	LogCapacity uint64
 	// LogOptions are the options for the log collector.
 	// Default: nil, will use collector.DefaultLogOptions()
 	LogOptions *collector.LogOptions
 
 	// HTTPClientCapacity is the maximum number of HTTP client requests (outgoing) to keep.
-	// Default: 1000
+	// Default: 0
 	HTTPClientCapacity uint64
 	// HTTPClientOptions are the options for the HTTP client collector.
 	// Default: nil, will use collector.DefaultHTTPClientOptions()
 	HTTPClientOptions *collector.HTTPClientOptions
 
 	// HTTPServerCapacity is the maximum number of HTTP server requests (incoming) to keep.
-	// Default: 1000
+	// Default: 0
 	HTTPServerCapacity uint64
 	// HTTPServerOptions are the options for the HTTP server collector.
 	// Default: nil, will use collector.DefaultHTTPServerOptions()
 	HTTPServerOptions *collector.HTTPServerOptions
 
 	// DBQueryCapacity is the maximum number of database queries to keep.
-	// Default: 1000
+	// Default: 0
 	DBQueryCapacity uint64
 	// DBQueryOptions are the options for the database query collector.
 	// Default: nil, will use collector.DefaultDBQueryOptions()
@@ -70,18 +70,6 @@ func New() *Instance {
 // NewWithOptions creates a new devlog dashboard with the specified options.
 // Default options are the zero value of Options.
 func NewWithOptions(options Options) *Instance {
-	if options.LogCapacity == 0 {
-		options.LogCapacity = 1000
-	}
-	if options.HTTPClientCapacity == 0 {
-		options.HTTPClientCapacity = 1000
-	}
-	if options.HTTPServerCapacity == 0 {
-		options.HTTPServerCapacity = 1000
-	}
-	if options.DBQueryCapacity == 0 {
-		options.DBQueryCapacity = 1000
-	}
 	if options.EventCapacity == 0 {
 		options.EventCapacity = 1000
 	}

@@ -1,5 +1,7 @@
 package views
 
+import "fmt"
+
 templ Header() {
 	<header class="border-b border-neutral-300 p-3 md:p-4">
 		<div class="mb-3 flex justify-between items-center">
@@ -12,18 +14,34 @@ templ Header() {
 					placeholder="Search..."
 				/>
 
-                // TODO Add refresh button
 				<button
 					class={ buttonClasses(
                     ButtonProps{
                         Variant: ButtonVariantOutline,
                         Size: ButtonSizeIcon,
                     }) }
+                    title="Clear list"
+                    hx-delete={fmt.Sprintf("%s/event-list", MustGetHandlerOptions(ctx).PathPrefix)}
+                    hx-target="#split-layout"
+                    hx-swap="outerHTML"
 				>
-					<span class="sr-only">Refresh</span>
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw h-4 w-4"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+					@iconDeleteRow()
 				</button>
 			</div>
 		</div>
 	</header>
+}
+
+templ iconDeleteRow() {
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" id="Delete-Row--Streamline-Sharp" height="24" width="24">
+      <desc>
+        Delete Row Streamline Icon: https://streamlinehq.com
+      </desc>
+      <g id="delete-row">
+        <path id="Rectangle 19" stroke="#000000" d="M12 15H1L1 1l22 0v11" stroke-width="2"></path>
+        <path id="Rectangle 20" stroke="#000000" d="M23 8 1 8" stroke-width="2"></path>
+        <path id="Vector 1144" stroke="#000000" d="m23 15 -8 8" stroke-width="2"></path>
+        <path id="Vector 1145" stroke="#000000" d="m23 23 -8 -8" stroke-width="2"></path>
+      </g>
+    </svg>
 }

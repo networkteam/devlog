@@ -29,7 +29,9 @@ type DBQueryCollector struct {
 }
 
 func (c *DBQueryCollector) Collect(ctx context.Context, query DBQuery) {
-	c.buffer.Add(query)
+	if c.buffer != nil {
+		c.buffer.Add(query)
+	}
 	c.notifier.Notify(query)
 	if c.eventCollector != nil {
 		c.eventCollector.CollectEvent(ctx, query)
@@ -37,6 +39,9 @@ func (c *DBQueryCollector) Collect(ctx context.Context, query DBQuery) {
 }
 
 func (c *DBQueryCollector) Tail(n int) []DBQuery {
+	if c.buffer == nil {
+		return nil
+	}
 	return c.buffer.GetRecords(uint64(n))
 }
 
@@ -67,11 +72,15 @@ func NewDBQueryCollectorWithOptions(capacity uint64, options DBQueryOptions) *DB
 		notifierOptions = *options.NotifierOptions
 	}
 
-	return &DBQueryCollector{
-		buffer:         NewRingBuffer[DBQuery](capacity),
+	collector := &DBQueryCollector{
 		notifier:       NewNotifierWithOptions[DBQuery](notifierOptions),
 		eventCollector: options.EventCollector,
 	}
+	if capacity > 0 {
+		collector.buffer = NewRingBuffer[DBQuery](capacity)
+	}
+
+	return collector
 }
 
 // Close releases resources used by the collector

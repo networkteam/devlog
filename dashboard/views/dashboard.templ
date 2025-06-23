@@ -7,11 +7,10 @@ import (
 type DashboardProps struct {
     SelectedEvent *collector.Event
     Events []*collector.Event
-    TruncateAfter int
 }
 
 templ Dashboard(props DashboardProps) {
-    {{ eventListProps := EventListProps{Events: props.Events, TruncateAfter: props.TruncateAfter} }}
+    {{ eventListProps := EventListProps{Events: props.Events} }}
     if props.SelectedEvent != nil {
         {{ eventListProps.SelectedEventID = &props.SelectedEvent.ID }}
     }

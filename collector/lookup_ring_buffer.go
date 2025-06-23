@@ -113,3 +113,17 @@ func (rb *LookupRingBuffer[T, S]) Size() uint64 {
 func (rb *LookupRingBuffer[T, S]) Capacity() uint64 {
 	return rb.capacity
 }
+
+func (rb *LookupRingBuffer[T, S]) Clear() {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+
+	// Reset the lookup map
+	rb.lookup = make(map[S]T)
+	// Set all entries in the buffer to their zero value
+	for i := range rb.buffer {
+		var item T
+		rb.buffer[i] = item
+	}
+	rb.size = 0
+}

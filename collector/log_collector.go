@@ -15,7 +15,9 @@ type LogCollector struct {
 }
 
 func (c *LogCollector) Collect(ctx context.Context, record slog.Record) {
-	c.buffer.Add(record)
+	if c.buffer != nil {
+		c.buffer.Add(record)
+	}
 	c.notifier.Notify(record)
 	if c.eventCollector != nil {
 		c.eventCollector.CollectEvent(ctx, record)
@@ -23,6 +25,9 @@ func (c *LogCollector) Collect(ctx context.Context, record slog.Record) {
 }
 
 func (c *LogCollector) Tail(n int) []slog.Record {
+	if c.buffer == nil {
+		return nil
+	}
 	return c.buffer.GetRecords(uint64(n))
 }
 
@@ -53,11 +58,15 @@ func NewLogCollectorWithOptions(capacity uint64, options LogOptions) *LogCollect
 		notifierOptions = *options.NotifierOptions
 	}
 
-	return &LogCollector{
-		buffer:         NewRingBuffer[slog.Record](capacity),
+	collector := &LogCollector{
 		notifier:       NewNotifierWithOptions[slog.Record](notifierOptions),
 		eventCollector: options.EventCollector,
 	}
+	if capacity > 0 {
+		collector.buffer = NewRingBuffer[slog.Record](capacity)
+	}
+
+	return collector
 }
 
 // Close releases resources used by the collector

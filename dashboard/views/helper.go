@@ -63,7 +63,8 @@ func chromaStyles() templ.Component {
 }
 
 type HandlerOptions struct {
-	PathPrefix string
+	PathPrefix    string
+	TruncateAfter uint64
 }
 
 // Context key for HandlerOptions
