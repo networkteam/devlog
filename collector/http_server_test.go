@@ -630,6 +630,100 @@ func TestHTTPServerCollector_RingBufferCapacity(t *testing.T) {
 	}
 }
 
+func TestHTTPServerCollector_UnreadRequestBodyCapture(t *testing.T) {
+	// This test verifies that request bodies are captured even when handlers don't read them
+
+	serverCollector := collector.NewHTTPServerCollector(100)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/exists", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
+
+	// Wrap the handler with our collector
+	wrappedHandler := serverCollector.Middleware(mux)
+
+	// Create a test server
+	server := httptest.NewServer(wrappedHandler)
+	defer server.Close()
+
+	testCases := []struct {
+		name           string
+		path           string
+		expectedStatus int
+		body           string
+		contentType    string
+	}{
+		{
+			name:           "404_with_form_data",
+			path:           "/nonexistent",
+			expectedStatus: http.StatusNotFound,
+			body:           "foo=bar&name=test&data=important",
+			contentType:    "application/x-www-form-urlencoded",
+		},
+		{
+			name:           "404_with_json_data",
+			path:           "/missing",
+			expectedStatus: http.StatusNotFound,
+			body:           `{"important":"data","should":"be_captured"}`,
+			contentType:    "application/json",
+		},
+		{
+			name:           "200_with_unread_data",
+			path:           "/exists",
+			expectedStatus: http.StatusOK,
+			body:           "handler=doesnt&read=this&but=should&capture=it",
+			contentType:    "application/x-www-form-urlencoded",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a client and make a POST request with a body that won't be read
+			client := &http.Client{}
+			req, err := http.NewRequest(http.MethodPost, server.URL+tc.path, strings.NewReader(tc.body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", tc.contentType)
+
+			// Send the request
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			// Verify expected status
+			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+
+			// Get the collected requests
+			requests := serverCollector.GetRequests(10)
+			require.GreaterOrEqual(t, len(requests), 1, "Should have collected at least one request")
+
+			// Find our specific request
+			var serverReq *collector.HTTPServerRequest
+			for i := range requests {
+				if requests[i].Path == tc.path && requests[i].Method == http.MethodPost {
+					serverReq = &requests[i]
+					break
+				}
+			}
+			require.NotNil(t, serverReq, "Should have found our POST request to %s", tc.path)
+
+			// Verify the request details
+			assert.Equal(t, http.MethodPost, serverReq.Method)
+			assert.Equal(t, tc.path, serverReq.Path)
+			assert.Equal(t, tc.expectedStatus, serverReq.StatusCode)
+			assert.Equal(t, tc.contentType, serverReq.RequestHeaders.Get("Content-Type"))
+
+			assert.NotNil(t, serverReq.RequestBody, "Request body should be captured even when handler doesn't read it")
+			if serverReq.RequestBody != nil {
+				capturedBody := serverReq.RequestBody.String()
+				assert.Equal(t, tc.body, capturedBody, "Should capture the exact body content even when unread")
+				assert.True(t, serverReq.RequestBody.IsFullyCaptured(), "Body should be marked as fully captured")
+				assert.Equal(t, int64(len(tc.body)), serverReq.RequestBody.Size(), "Should capture the full body size")
+			}
+		})
+	}
+}
+
 func TestHTTPServerCollector_MultipleHandlers(t *testing.T) {
 	// Create a server collector
 	serverCollector := collector.NewHTTPServerCollector(100)

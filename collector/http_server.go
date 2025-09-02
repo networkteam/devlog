@@ -168,6 +168,11 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 		// Call the next handler
 		next.ServeHTTP(crw, r)
 
+		// Close the request body to make sure we capture request bodies even if they are not read
+		if requestBody != nil {
+			_ = requestBody.Close()
+		}
+
 		// Record end time
 		responseTime := time.Now()
 		httpReq.ResponseTime = responseTime
