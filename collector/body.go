@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"sync"
@@ -37,6 +38,63 @@ func NewBody(rc io.ReadCloser, limit int) *Body {
 	return b
 }
 
+// PreReadBody creates a new Body wrapper that immediately pre-reads data from the body.
+// This ensures body content is captured even if the underlying connection is closed early.
+// It returns a Body with an io.MultiReader that combines the pre-read buffer with the original reader.
+func PreReadBody(rc io.ReadCloser, limit int) *Body {
+	if rc == nil {
+		return NewBody(rc, limit)
+	}
+
+	// Create the body with buffer to capture data.
+	b := &Body{
+		buffer: NewLimitedBuffer(limit),
+	}
+
+	// Pre-read up to limit bytes into our capture buffer
+	_, err := io.CopyN(b.buffer, rc, int64(limit))
+
+	if err == io.EOF {
+		// We've read everything (body was smaller than limit).
+		b.consumedOriginal = true
+		b.isFullyCaptured = true
+
+		// Already close the original body since it is fully consumed
+		_ = rc.Close()
+		// Create a reader with just the pre-read data as a copy of the pre-read buffer.
+		b.reader = &preReadBodyWrapper{
+			Reader: bytes.NewReader(b.buffer.Bytes()),
+			closer: nil,
+		}
+		return b
+	}
+
+	// We didn't consume everything (either hit limit or got an error).
+	// Create MultiReader with pre-read data from our buffer + remaining original body.
+	multiReader := io.MultiReader(bytes.NewReader(b.buffer.Bytes()), rc)
+
+	// Wrap in a readCloser to maintain the Close capability
+	b.reader = &preReadBodyWrapper{
+		Reader: multiReader,
+		closer: rc,
+	}
+
+	return b
+}
+
+// preReadBodyWrapper wraps an io.Reader with Close functionality
+type preReadBodyWrapper struct {
+	io.Reader
+	closer io.Closer
+}
+
+func (w *preReadBodyWrapper) Close() error {
+	if w.closer != nil {
+		return w.closer.Close()
+	}
+	return nil
+}
+
 func (b *Body) Read(p []byte) (n int, err error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -52,8 +110,12 @@ func (b *Body) Read(p []byte) (n int, err error) {
 	// Read from the original reader
 	n, err = b.reader.Read(p)
 
+	// Only write to buffer if it's not a preReadBodyWrapper
+	// (preReadBodyWrapper means we already captured the data in PreReadBody)
 	if n > 0 {
-		b.buffer.Write(p[:n])
+		if _, isPreRead := b.reader.(*preReadBodyWrapper); !isPreRead {
+			_, _ = b.buffer.Write(p[:n])
+		}
 	}
 
 	// If EOF, mark as fully consumed
@@ -68,7 +130,6 @@ func (b *Body) Read(p []byte) (n int, err error) {
 }
 
 // Close closes the original body and finalizes the buffer.
-// This will attempt to read any unread data from the original body up to the maximum size limit.
 func (b *Body) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -81,39 +142,25 @@ func (b *Body) Close() error {
 		return nil
 	}
 
-	// Mark as closed before capturing remaining data to avoid potential recursive calls
+	// Mark as closed
 	b.closed = true
 
-	// Check state to determine if we need to read more data
-	fullyConsumed := b.consumedOriginal
-
-	// If the body wasn't fully read, read the rest of it into our buffer
-	if !fullyConsumed {
-		// Create a buffer for reading
-		buf := make([]byte, 32*1024) // 32KB chunks
-
-		// Try to read more data
-		for {
-			var n int
-			var readErr error
-			n, readErr = b.reader.Read(buf)
-
-			if n > 0 {
-				b.buffer.Write(buf[:n])
-			}
-
-			if readErr != nil {
-				// We've read all we can
-				break
-			}
-		}
+	// For PreReadBody cases (identified by preReadBodyWrapper),
+	// the data is already captured, just close
+	if _, isPreRead := b.reader.(*preReadBodyWrapper); isPreRead {
+		return b.reader.Close()
 	}
 
-	// Now close the original reader - its implementation should handle any cleanup
+	// For legacy NewBody usage (when not using PreReadBody),
+	// we still need to try to read remaining data
+	if !b.consumedOriginal {
+		_, _ = io.Copy(b.buffer, b.reader)
+	}
+
+	// Close the original reader
 	err := b.reader.Close()
 
 	if !b.buffer.IsTruncated() {
-		// Mark as fully captured
 		b.isFullyCaptured = true
 	}
 
