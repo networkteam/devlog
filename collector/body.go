@@ -54,10 +54,26 @@ func PreReadBody(rc io.ReadCloser, limit int) *Body {
 	// Pre-read up to limit bytes into our capture buffer
 	_, err := io.CopyN(b.buffer, rc, int64(limit))
 
+	// Check if there's more data to determine truncation
+	if err == nil {
+		// We successfully read 'limit' bytes, check if there's more
+		var dummy [1]byte
+		_, moreErr := rc.Read(dummy[:])
+		if moreErr == nil {
+			// There was more data, so we're truncated
+			b.buffer.truncated = true
+			// Put the byte back by creating a MultiReader with it and remaining data
+			rc = io.NopCloser(io.MultiReader(bytes.NewReader(dummy[:]), rc))
+		} else if moreErr != io.EOF {
+			// Some other read error
+			err = moreErr
+		}
+	}
+
 	if err == io.EOF {
 		// We've read everything (body was smaller than limit).
 		b.consumedOriginal = true
-		b.isFullyCaptured = true
+		b.isFullyCaptured = !b.buffer.IsTruncated()
 
 		// Already close the original body since it is fully consumed
 		_ = rc.Close()
@@ -121,6 +137,7 @@ func (b *Body) Read(p []byte) (n int, err error) {
 	// If EOF, mark as fully consumed
 	if err == io.EOF {
 		b.consumedOriginal = true
+		b.isFullyCaptured = !b.buffer.IsTruncated()
 
 		// Remove original body
 		b.reader = nil
