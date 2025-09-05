@@ -639,6 +639,13 @@ func TestHTTPServerCollector_UnreadRequestBodyCapture(t *testing.T) {
 	mux.HandleFunc("/exists", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
 	})
+	mux.HandleFunc("/large-response", func(w http.ResponseWriter, r *http.Request) {
+		// Write a large response (>4KB to trigger Go's behavior of closing request body)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		largeData := strings.Repeat("x", 8192) // 8KB
+		w.Write([]byte(largeData))
+	})
 
 	// Wrap the handler with our collector
 	wrappedHandler := serverCollector.Middleware(mux)
@@ -673,6 +680,13 @@ func TestHTTPServerCollector_UnreadRequestBodyCapture(t *testing.T) {
 			path:           "/exists",
 			expectedStatus: http.StatusOK,
 			body:           "handler=doesnt&read=this&but=should&capture=it",
+			contentType:    "application/x-www-form-urlencoded",
+		},
+		{
+			name:           "large_response_with_unread_body",
+			path:           "/large-response",
+			expectedStatus: http.StatusOK,
+			body:           "important=data&that=should&be=captured&even=with&large=response",
 			contentType:    "application/x-www-form-urlencoded",
 		},
 	}

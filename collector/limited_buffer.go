@@ -2,6 +2,7 @@ package collector
 
 import (
 	"bytes"
+	"io"
 )
 
 // LimitedBuffer is a buffer that only writes up to a certain size
@@ -52,6 +53,14 @@ func (b *LimitedBuffer) IsTruncated() bool {
 func (b *LimitedBuffer) Reset() {
 	b.Buffer.Reset()
 	b.truncated = false
+}
+
+// ReadFrom is disabled to force io.CopyN to use our Write method with truncation logic
+func (b *LimitedBuffer) ReadFrom(r io.Reader) (n int64, err error) {
+	// Force io.CopyN to use Write() method which has proper truncation logic
+	// by delegating to io.CopyBuffer
+	buf := make([]byte, 32*1024) // Use a reasonable buffer size
+	return io.CopyBuffer(struct{ io.Writer }{b}, r, buf)
 }
 
 // String returns the contents of the buffer as a string.

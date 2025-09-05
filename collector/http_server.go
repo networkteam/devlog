@@ -140,8 +140,8 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 			// Save the original body
 			originalBody := r.Body
 
-			// Create a body wrapper
-			requestBody = NewBody(originalBody, c.options.MaxBodySize)
+			// Pre-read the body to ensure capturing bodies even if the handler writes a large response (Go net/http will close the request body then)
+			requestBody = PreReadBody(originalBody, c.options.MaxBodySize)
 
 			// Replace the request body with our wrapper
 			r.Body = requestBody

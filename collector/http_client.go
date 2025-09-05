@@ -144,8 +144,8 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 	// Capture request body if present and configured to do so
 	if req.Body != nil && t.collector.options.CaptureRequestBody {
-		// Wrap the body to capture it
-		body := NewBody(req.Body, t.collector.options.MaxBodySize)
+		// Pre-read the body to ensure capture
+		body := PreReadBody(req.Body, t.collector.options.MaxBodySize)
 
 		// Store the body in the request record
 		httpReq.RequestBody = body
@@ -187,8 +187,8 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			// Create a copy of the response to read the body even if the client doesn't
 			originalRespBody := resp.Body
 
-			// Wrap the body to capture it
-			body := NewBody(originalRespBody, t.collector.options.MaxBodySize)
+			// Pre-read the body to ensure capture even if client doesn't read it
+			body := PreReadBody(originalRespBody, t.collector.options.MaxBodySize)
 
 			// Store the body in the request record
 			httpReq.ResponseBody = body
