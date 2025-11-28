@@ -26,7 +26,11 @@ type HTTPClientOptions struct {
 	NotifierOptions *NotifierOptions
 
 	// EventCollector is an optional event collector for collecting requests as grouped events
+	// Deprecated: Use EventAggregator instead
 	EventCollector *EventCollector
+
+	// EventAggregator is the aggregator for collecting requests as grouped events
+	EventAggregator *EventAggregator
 }
 
 type HTTPClientRequestTransformer func(HTTPClientRequest) HTTPClientRequest
@@ -44,9 +48,10 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 type HTTPClientCollector struct {
 	buffer *RingBuffer[HTTPClientRequest]
 
-	options        HTTPClientOptions
-	notifier       *Notifier[HTTPClientRequest]
-	eventCollector *EventCollector
+	options         HTTPClientOptions
+	notifier        *Notifier[HTTPClientRequest]
+	eventCollector  *EventCollector  // Deprecated: use eventAggregator
+	eventAggregator *EventAggregator
 
 	mu sync.RWMutex
 }
@@ -64,9 +69,10 @@ func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOption
 	}
 
 	collector := &HTTPClientCollector{
-		options:        options,
-		notifier:       NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
-		eventCollector: options.EventCollector,
+		options:         options,
+		notifier:        NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
+		eventCollector:  options.EventCollector,
+		eventAggregator: options.EventAggregator,
 	}
 	if capacity > 0 {
 		collector.buffer = NewRingBuffer[HTTPClientRequest](capacity)
@@ -121,6 +127,21 @@ type httpClientTransport struct {
 }
 
 func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx := req.Context()
+
+	// Check if we should capture this request (using EventAggregator)
+	// Default to true for backward compatibility when neither aggregator nor collector is set
+	shouldCapture := true
+	if t.collector.eventAggregator != nil {
+		shouldCapture = t.collector.eventAggregator.ShouldCapture(ctx)
+	}
+	// Note: EventCollector (deprecated) is always-capture, so no change needed
+
+	// Early bailout if not capturing - just pass through
+	if !shouldCapture {
+		return t.next.RoundTrip(req)
+	}
+
 	// Generate a unique ID for this request
 	id := generateID()
 
@@ -154,8 +175,16 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		req.Body = body
 	}
 
-	if t.collector.eventCollector != nil {
-		newCtx := t.collector.eventCollector.StartEvent(req.Context())
+	// Start event tracking with EventAggregator
+	if t.collector.eventAggregator != nil {
+		newCtx := t.collector.eventAggregator.StartEvent(ctx)
+		defer func(req *HTTPClientRequest) {
+			t.collector.eventAggregator.EndEvent(newCtx, *req)
+		}(&httpReq)
+
+		req = req.WithContext(newCtx)
+	} else if t.collector.eventCollector != nil {
+		newCtx := t.collector.eventCollector.StartEvent(ctx)
 		defer func(req *HTTPClientRequest) {
 			t.collector.eventCollector.EndEvent(newCtx, *req)
 		}(&httpReq)

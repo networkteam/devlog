@@ -8,7 +8,17 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gofrs/uuid"
 )
+
+// parseUUID parses a UUID string and returns the UUID or an error
+func parseUUID(s string) (uuid.UUID, error) {
+	return uuid.FromString(s)
+}
+
+// SessionCookieName is the name of the cookie used to identify capture sessions
+const SessionCookieName = "devlog_session"
 
 // HTTPServerOptions configures the HTTP server collector
 type HTTPServerOptions struct {
@@ -32,7 +42,11 @@ type HTTPServerOptions struct {
 	NotifierOptions *NotifierOptions
 
 	// EventCollector is an optional event collector for collecting requests as grouped events
+	// Deprecated: Use EventAggregator instead
 	EventCollector *EventCollector
+
+	// EventAggregator is the aggregator for collecting requests as grouped events
+	EventAggregator *EventAggregator
 }
 
 type HTTPServerRequestTransformer func(HTTPServerRequest) HTTPServerRequest
@@ -51,9 +65,10 @@ func DefaultHTTPServerOptions() HTTPServerOptions {
 type HTTPServerCollector struct {
 	buffer *RingBuffer[HTTPServerRequest]
 
-	options        HTTPServerOptions
-	notifier       *Notifier[HTTPServerRequest]
-	eventCollector *EventCollector
+	options         HTTPServerOptions
+	notifier        *Notifier[HTTPServerRequest]
+	eventCollector  *EventCollector  // Deprecated: use eventAggregator
+	eventAggregator *EventAggregator
 
 	mu sync.RWMutex
 }
@@ -71,9 +86,10 @@ func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOption
 	}
 
 	collector := &HTTPServerCollector{
-		options:        options,
-		notifier:       NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
-		eventCollector: options.EventCollector,
+		options:         options,
+		notifier:        NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
+		eventCollector:  options.EventCollector,
+		eventAggregator: options.EventAggregator,
 	}
 	if capacity > 0 {
 		collector.buffer = NewRingBuffer[HTTPServerRequest](capacity)
@@ -113,6 +129,30 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+		}
+
+		ctx := r.Context()
+
+		// Extract session cookie and add to context
+		if cookie, err := r.Cookie(SessionCookieName); err == nil {
+			if sessionID, err := parseUUID(cookie.Value); err == nil {
+				ctx = WithSessionID(ctx, sessionID)
+				r = r.WithContext(ctx)
+			}
+		}
+
+		// Check if we should capture this request (using EventAggregator)
+		// Default to true for backward compatibility when neither aggregator nor collector is set
+		shouldCapture := true
+		if c.eventAggregator != nil {
+			shouldCapture = c.eventAggregator.ShouldCapture(ctx)
+		}
+		// Note: EventCollector (deprecated) is always-capture, so no change needed
+
+		// Early bailout if not capturing (only applies when EventAggregator is active)
+		if !shouldCapture {
+			next.ServeHTTP(w, r)
+			return
 		}
 
 		// Generate a unique ID for this request
@@ -156,8 +196,16 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 			collector:      c,
 		}
 
-		if c.eventCollector != nil {
-			newCtx := c.eventCollector.StartEvent(r.Context())
+		// Start event tracking
+		if c.eventAggregator != nil {
+			newCtx := c.eventAggregator.StartEvent(ctx)
+			defer func(req *HTTPServerRequest) {
+				c.eventAggregator.EndEvent(newCtx, *req)
+			}(&httpReq)
+
+			r = r.WithContext(newCtx)
+		} else if c.eventCollector != nil {
+			newCtx := c.eventCollector.StartEvent(ctx)
 			defer func(req *HTTPServerRequest) {
 				c.eventCollector.EndEvent(newCtx, *req)
 			}(&httpReq)

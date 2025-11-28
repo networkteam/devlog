@@ -14,7 +14,9 @@ type Instance struct {
 	httpClientCollector *collector.HTTPClientCollector
 	httpServerCollector *collector.HTTPServerCollector
 	dbQueryCollector    *collector.DBQueryCollector
-	eventCollector      *collector.EventCollector
+	eventAggregator     *collector.EventAggregator
+
+	dashboardHandler *dashboard.Handler
 }
 
 func (i *Instance) Close() {
@@ -22,7 +24,10 @@ func (i *Instance) Close() {
 	i.httpClientCollector.Close()
 	i.httpServerCollector.Close()
 	i.dbQueryCollector.Close()
-	i.eventCollector.Close()
+	if i.dashboardHandler != nil {
+		i.dashboardHandler.Close()
+	}
+	i.eventAggregator.Close()
 }
 
 type Options struct {
@@ -53,13 +58,6 @@ type Options struct {
 	// DBQueryOptions are the options for the database query collector.
 	// Default: nil, will use collector.DefaultDBQueryOptions()
 	DBQueryOptions *collector.DBQueryOptions
-
-	// EventCapacity is the maximum number of events to keep.
-	// Default: 1000
-	EventCapacity uint64
-	// EventOptions are the options for the event collector.
-	// Default: nil, will use collector.DefaultEventOptions()
-	EventOptions *collector.EventOptions
 }
 
 // New creates a new devlog dashboard with default options.
@@ -69,48 +67,43 @@ func New() *Instance {
 
 // NewWithOptions creates a new devlog dashboard with the specified options.
 // Default options are the zero value of Options.
+//
+// By default, no events are collected until a user starts a capture session
+// through the dashboard. Events are collected per-user with isolation.
 func NewWithOptions(options Options) *Instance {
-	if options.EventCapacity == 0 {
-		options.EventCapacity = 1000
-	}
-
-	eventOptions := collector.DefaultEventOptions()
-	if options.EventOptions != nil {
-		eventOptions = *options.EventOptions
-	}
-
-	eventCollector := collector.NewEventCollectorWithOptions(options.EventCapacity, eventOptions)
+	// Create the central EventAggregator (no storage by default)
+	eventAggregator := collector.NewEventAggregator()
 
 	logOptions := collector.DefaultLogOptions()
 	if options.LogOptions != nil {
 		logOptions = *options.LogOptions
 	}
-	logOptions.EventCollector = eventCollector
+	logOptions.EventAggregator = eventAggregator
 
 	httpClientOptions := collector.DefaultHTTPClientOptions()
 	if options.HTTPClientOptions != nil {
 		httpClientOptions = *options.HTTPClientOptions
 	}
-	httpClientOptions.EventCollector = eventCollector
+	httpClientOptions.EventAggregator = eventAggregator
 
 	httpServerOptions := collector.DefaultHTTPServerOptions()
 	if options.HTTPServerOptions != nil {
 		httpServerOptions = *options.HTTPServerOptions
 	}
-	httpServerOptions.EventCollector = eventCollector
+	httpServerOptions.EventAggregator = eventAggregator
 
 	dbQueryOptions := collector.DefaultDBQueryOptions()
 	if options.DBQueryOptions != nil {
 		dbQueryOptions = *options.DBQueryOptions
 	}
-	dbQueryOptions.EventCollector = eventCollector
+	dbQueryOptions.EventAggregator = eventAggregator
 
 	instance := &Instance{
 		logCollector:        collector.NewLogCollectorWithOptions(options.LogCapacity, logOptions),
 		httpClientCollector: collector.NewHTTPClientCollectorWithOptions(options.HTTPClientCapacity, httpClientOptions),
 		httpServerCollector: collector.NewHTTPServerCollectorWithOptions(options.HTTPServerCapacity, httpServerOptions),
 		dbQueryCollector:    collector.NewDBQueryCollectorWithOptions(options.DBQueryCapacity, dbQueryOptions),
-		eventCollector:      eventCollector,
+		eventAggregator:     eventAggregator,
 	}
 	return instance
 }
@@ -138,11 +131,13 @@ func (i *Instance) CollectDBQuery() func(ctx context.Context, dbQuery collector.
 }
 
 func (i *Instance) DashboardHandler(pathPrefix string) http.Handler {
-	return dashboard.NewHandler(
+	handler := dashboard.NewHandler(
 		dashboard.HandlerOptions{
-			EventCollector: i.eventCollector,
+			EventAggregator: i.eventAggregator,
 
 			PathPrefix: pathPrefix,
 		},
 	)
+	i.dashboardHandler = handler
+	return handler
 }

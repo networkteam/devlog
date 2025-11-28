@@ -1,21 +1,23 @@
 package views
 
 import (
-    "github.com/networkteam/devlog/collector"
+	"github.com/networkteam/devlog/collector"
 )
 
 type DashboardProps struct {
-    SelectedEvent *collector.Event
-    Events []*collector.Event
+	SelectedEvent *collector.Event
+	Events        []*collector.Event
+	CaptureActive bool
+	CaptureMode   string // "session" or "global"
 }
 
 templ Dashboard(props DashboardProps) {
-    {{ eventListProps := EventListProps{Events: props.Events} }}
-    if props.SelectedEvent != nil {
-        {{ eventListProps.SelectedEventID = &props.SelectedEvent.ID }}
-    }
-
-	@Layout() {
+	{{ eventListProps := EventListProps{Events: props.Events} }}
+	if props.SelectedEvent != nil {
+		{{ eventListProps.SelectedEventID = &props.SelectedEvent.ID }}
+	}
+	{{ capture := CaptureState{Active: props.CaptureActive, Mode: props.CaptureMode} }}
+	@Layout(capture) {
 		@SplitLayout(EventList(eventListProps), EventDetailContainer(props.SelectedEvent))
 	}
 }

@@ -6,6 +6,7 @@ type ButtonVariant string
 type ButtonSize string
 
 const (
+	ButtonVariantDefault   ButtonVariant = ""
 	ButtonVariantOutline   ButtonVariant = "outline"
 	ButtonVariantSecondary ButtonVariant = "secondary"
 
@@ -14,9 +15,10 @@ const (
 )
 
 type ButtonProps struct {
-	Variant ButtonVariant
-	Size    ButtonSize
-	Class   string
+	Variant  ButtonVariant
+	Size     ButtonSize
+	Class    string
+	Disabled bool
 }
 
 func buttonClasses(props ButtonProps) string {

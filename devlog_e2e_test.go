@@ -34,7 +34,6 @@ func TestE2E(t *testing.T) {
 			CaptureResponseBody: true,
 		},
 		DBQueryCapacity: 10,
-		EventCapacity:   10,
 	})
 
 	mux := http.NewServeMux()

@@ -23,9 +23,10 @@ type DBQuery struct {
 }
 
 type DBQueryCollector struct {
-	buffer         *RingBuffer[DBQuery]
-	notifier       *Notifier[DBQuery]
-	eventCollector *EventCollector
+	buffer          *RingBuffer[DBQuery]
+	notifier        *Notifier[DBQuery]
+	eventCollector  *EventCollector  // Deprecated: use eventAggregator
+	eventAggregator *EventAggregator
 }
 
 func (c *DBQueryCollector) Collect(ctx context.Context, query DBQuery) {
@@ -33,7 +34,9 @@ func (c *DBQueryCollector) Collect(ctx context.Context, query DBQuery) {
 		c.buffer.Add(query)
 	}
 	c.notifier.Notify(query)
-	if c.eventCollector != nil {
+	if c.eventAggregator != nil {
+		c.eventAggregator.CollectEvent(ctx, query)
+	} else if c.eventCollector != nil {
 		c.eventCollector.CollectEvent(ctx, query)
 	}
 }
@@ -55,7 +58,11 @@ type DBQueryOptions struct {
 	NotifierOptions *NotifierOptions
 
 	// EventCollector is an optional event collector for collecting logs as grouped events
+	// Deprecated: Use EventAggregator instead
 	EventCollector *EventCollector
+
+	// EventAggregator is the aggregator for collecting queries as grouped events
+	EventAggregator *EventAggregator
 }
 
 func DefaultDBQueryOptions() DBQueryOptions {
@@ -73,8 +80,9 @@ func NewDBQueryCollectorWithOptions(capacity uint64, options DBQueryOptions) *DB
 	}
 
 	collector := &DBQueryCollector{
-		notifier:       NewNotifierWithOptions[DBQuery](notifierOptions),
-		eventCollector: options.EventCollector,
+		notifier:        NewNotifierWithOptions[DBQuery](notifierOptions),
+		eventCollector:  options.EventCollector,
+		eventAggregator: options.EventAggregator,
 	}
 	if capacity > 0 {
 		collector.buffer = NewRingBuffer[DBQuery](capacity)

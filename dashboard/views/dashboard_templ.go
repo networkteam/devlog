@@ -15,6 +15,8 @@ import (
 type DashboardProps struct {
 	SelectedEvent *collector.Event
 	Events        []*collector.Event
+	CaptureActive bool
+	CaptureMode   string // "session" or "global"
 }
 
 func Dashboard(props DashboardProps) templ.Component {
@@ -42,6 +44,7 @@ func Dashboard(props DashboardProps) templ.Component {
 		if props.SelectedEvent != nil {
 			eventListProps.SelectedEventID = &props.SelectedEvent.ID
 		}
+		capture := CaptureState{Active: props.CaptureActive, Mode: props.CaptureMode}
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -60,7 +63,7 @@ func Dashboard(props DashboardProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Layout().Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Layout(capture).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

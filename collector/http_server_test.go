@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -806,4 +807,202 @@ func TestHTTPServerCollector_MultipleHandlers(t *testing.T) {
 
 	assert.True(t, capturedPaths["/api/users"], "Should have captured /api/users")
 	assert.True(t, capturedPaths["/web/index"], "Should have captured /web/index")
+}
+
+func TestHTTPServerCollector_WithEventAggregator_GlobalMode(t *testing.T) {
+	// Create an EventAggregator with a GlobalMode storage
+	aggregator := collector.NewEventAggregator()
+	defer aggregator.Close()
+
+	sessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeGlobal)
+	aggregator.RegisterStorage(storage)
+
+	// Create a server collector with the EventAggregator
+	options := collector.DefaultHTTPServerOptions()
+	options.EventAggregator = aggregator
+	serverCollector := collector.NewHTTPServerCollectorWithOptions(100, options)
+
+	// Create a simple handler
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello, World!"))
+	})
+
+	// Wrap the handler with our collector
+	wrappedHandler := serverCollector.Middleware(handler)
+
+	// Create a test server
+	server := httptest.NewServer(wrappedHandler)
+	defer server.Close()
+
+	// Make a request (without session cookie - GlobalMode should capture anyway)
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, World!", string(body))
+
+	// Verify the event was captured in the storage
+	events := storage.GetEvents(10)
+	require.Len(t, events, 1)
+
+	// The event data should be an HTTPServerRequest
+	httpReq, ok := events[0].Data.(collector.HTTPServerRequest)
+	require.True(t, ok, "Event data should be HTTPServerRequest")
+	assert.Equal(t, http.MethodGet, httpReq.Method)
+	assert.Equal(t, "/test", httpReq.Path)
+	assert.Equal(t, http.StatusOK, httpReq.StatusCode)
+}
+
+func TestHTTPServerCollector_WithEventAggregator_SessionMode_NoMatch(t *testing.T) {
+	// Create an EventAggregator with a SessionMode storage
+	aggregator := collector.NewEventAggregator()
+	defer aggregator.Close()
+
+	sessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeSession)
+	aggregator.RegisterStorage(storage)
+
+	// Create a server collector with the EventAggregator
+	options := collector.DefaultHTTPServerOptions()
+	options.EventAggregator = aggregator
+	serverCollector := collector.NewHTTPServerCollectorWithOptions(100, options)
+
+	// Create a simple handler
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello, World!"))
+	})
+
+	// Wrap the handler with our collector
+	wrappedHandler := serverCollector.Middleware(handler)
+
+	// Create a test server
+	server := httptest.NewServer(wrappedHandler)
+	defer server.Close()
+
+	// Make a request without a session cookie (SessionMode should NOT capture)
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, World!", string(body))
+
+	// Verify no events were captured (session doesn't match)
+	events := storage.GetEvents(10)
+	assert.Len(t, events, 0)
+}
+
+func TestHTTPServerCollector_WithEventAggregator_SessionMode_Match(t *testing.T) {
+	// Create an EventAggregator with a SessionMode storage
+	aggregator := collector.NewEventAggregator()
+	defer aggregator.Close()
+
+	sessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeSession)
+	aggregator.RegisterStorage(storage)
+
+	// Create a server collector with the EventAggregator
+	options := collector.DefaultHTTPServerOptions()
+	options.EventAggregator = aggregator
+	serverCollector := collector.NewHTTPServerCollectorWithOptions(100, options)
+
+	// Create a simple handler
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello, World!"))
+	})
+
+	// Wrap the handler with our collector
+	wrappedHandler := serverCollector.Middleware(handler)
+
+	// Create a test server
+	server := httptest.NewServer(wrappedHandler)
+	defer server.Close()
+
+	// Make a request WITH the session cookie (SessionMode should capture)
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  collector.SessionCookieName,
+		Value: sessionID.String(),
+	})
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, World!", string(body))
+
+	// Verify the event was captured
+	events := storage.GetEvents(10)
+	require.Len(t, events, 1)
+
+	// The event data should be an HTTPServerRequest
+	httpReq, ok := events[0].Data.(collector.HTTPServerRequest)
+	require.True(t, ok, "Event data should be HTTPServerRequest")
+	assert.Equal(t, http.MethodGet, httpReq.Method)
+	assert.Equal(t, "/test", httpReq.Path)
+}
+
+func TestHTTPServerCollector_WithEventAggregator_NoStorage(t *testing.T) {
+	// Create an EventAggregator with NO storage registered
+	aggregator := collector.NewEventAggregator()
+	defer aggregator.Close()
+
+	// Create a server collector with the EventAggregator
+	options := collector.DefaultHTTPServerOptions()
+	options.EventAggregator = aggregator
+	serverCollector := collector.NewHTTPServerCollectorWithOptions(100, options)
+
+	// Create a simple handler
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello, World!"))
+	})
+
+	// Wrap the handler with our collector
+	wrappedHandler := serverCollector.Middleware(handler)
+
+	// Create a test server
+	server := httptest.NewServer(wrappedHandler)
+	defer server.Close()
+
+	// Make a request (no storage means ShouldCapture returns false, early bailout)
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, World!", string(body))
+
+	// Verify no requests were captured by the server collector's buffer
+	// (early bailout should prevent capture)
+	requests := serverCollector.GetRequests(10)
+	assert.Len(t, requests, 0)
 }
