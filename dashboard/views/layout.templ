@@ -33,12 +33,12 @@ templ Layout(capture CaptureState) {
 			@chromaStyles()
 		</head>
 		<body
-			class="min-h-screen flex flex-col justify-between"
+			class="h-screen flex flex-col overflow-hidden"
 			hx-ext="sse"
 			data-cleanup-url={ fmt.Sprintf("%s/s/%s/capture/cleanup", opts.PathPrefix, opts.SessionID) }
 		>
 			@Header(capture)
-			<main class="grow flex flex-col">
+			<main class="flex-1 min-h-0 flex flex-col">
 				{ children... }
 			</main>
 			<script>
