@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+@theme {
+  --color-devlog-cyan: #06f5f7;
+}
+
+/* Custom glow utilities for capture buttons */
+.glow-red {
+  box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.4);
+}
+
+.glow-gray {
+  box-shadow: 0 0 8px 2px rgba(115, 115, 115, 0.3);
+}
+
+/* Cassette player style pressed button */
+.btn-pressed {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
