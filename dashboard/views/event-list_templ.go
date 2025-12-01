@@ -93,7 +93,7 @@ func EventList(props EventListProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div id=\"event-list\" class=\"flex items-center justify-center h-full text-neutral-500 p-8\"><p>Click Record to start capturing events</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div id=\"event-list\" class=\"flex items-center justify-center h-full text-white/50 p-8\"><p>Click Record to start capturing events</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
