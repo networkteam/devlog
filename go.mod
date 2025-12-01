@@ -7,6 +7,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.17.2
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/networkteam/refresh v1.15.0
+	github.com/playwright-community/playwright-go v0.5200.1
 	github.com/samber/lo v1.50.0
 	github.com/stretchr/testify v1.10.0
 )
@@ -18,9 +19,12 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cli/browser v1.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/deckarep/golang-set/v2 v2.7.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
+	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
