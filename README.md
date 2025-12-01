@@ -261,6 +261,35 @@ dashboard := devlog.NewWithOptions(devlog.Options{
 })
 ```
 
+## Development
+
+### Running Acceptance Tests
+
+The project includes Playwright-based acceptance tests that verify the dashboard UI works correctly with the backend.
+
+**Prerequisites:**
+
+Playwright browsers will be automatically installed on first run.
+
+**Run all acceptance tests:**
+
+```bash
+go test -v -tags=acceptance -timeout 5m ./acceptance/...
+```
+
+**Debug mode (visible browser):**
+
+```bash
+HEADLESS=false go test -v -tags=acceptance -parallel=1 ./acceptance/...
+```
+
+The acceptance tests cover:
+- Dashboard access and session management
+- Global and session capture modes
+- Event capturing and display (HTTP server/client, logs, DB queries)
+- SSE real-time updates
+- Mode switching and event clearing
+
 ## TODOs
 
 - [ ] Add support for generic events/groups that can be used in user-code 

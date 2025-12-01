@@ -84,6 +84,57 @@ func TestCaptureStorage_SetCaptureMode(t *testing.T) {
 	assert.Equal(t, collector.CaptureModeSession, storage.CaptureMode())
 }
 
+func TestCaptureStorage_SetCapturing(t *testing.T) {
+	sessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeGlobal)
+	defer storage.Close()
+
+	// Should start in capturing state
+	assert.True(t, storage.IsCapturing())
+
+	// Should be able to pause
+	storage.SetCapturing(false)
+	assert.False(t, storage.IsCapturing())
+
+	// Should be able to resume
+	storage.SetCapturing(true)
+	assert.True(t, storage.IsCapturing())
+}
+
+func TestCaptureStorage_ShouldCapture_WhenNotCapturing(t *testing.T) {
+	sessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeGlobal)
+	defer storage.Close()
+
+	ctx := context.Background()
+
+	// Should capture when capturing is enabled
+	assert.True(t, storage.ShouldCapture(ctx))
+
+	// Pause capturing
+	storage.SetCapturing(false)
+
+	// Should NOT capture even in global mode when capturing is disabled
+	assert.False(t, storage.ShouldCapture(ctx))
+}
+
+func TestCaptureStorage_ShouldCapture_SessionMode_WhenNotCapturing(t *testing.T) {
+	sessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeSession)
+	defer storage.Close()
+
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{sessionID})
+
+	// Should capture matching session
+	assert.True(t, storage.ShouldCapture(ctx))
+
+	// Pause capturing
+	storage.SetCapturing(false)
+
+	// Should NOT capture even with matching session when capturing is disabled
+	assert.False(t, storage.ShouldCapture(ctx))
+}
+
 func TestCaptureStorage_Add_StoresEvent(t *testing.T) {
 	sessionID := uuid.Must(uuid.NewV4())
 	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeGlobal)

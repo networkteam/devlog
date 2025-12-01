@@ -51,6 +51,7 @@ type CaptureStorage struct {
 	id          uuid.UUID
 	sessionID   uuid.UUID
 	captureMode CaptureMode
+	capturing   bool // whether actively capturing events
 
 	buffer   *LookupRingBuffer[*Event, uuid.UUID]
 	notifier *Notifier[*Event]
@@ -62,6 +63,7 @@ func NewCaptureStorage(sessionID uuid.UUID, capacity uint64, mode CaptureMode) *
 		id:          uuid.Must(uuid.NewV7()),
 		sessionID:   sessionID,
 		captureMode: mode,
+		capturing:   true,
 		buffer:      NewLookupRingBuffer[*Event, uuid.UUID](capacity),
 		notifier:    NewNotifier[*Event](),
 	}
@@ -87,8 +89,21 @@ func (s *CaptureStorage) SetCaptureMode(mode CaptureMode) {
 	s.captureMode = mode
 }
 
+// IsCapturing returns whether the storage is actively capturing events
+func (s *CaptureStorage) IsCapturing() bool {
+	return s.capturing
+}
+
+// SetCapturing enables or disables capturing of new events
+func (s *CaptureStorage) SetCapturing(capturing bool) {
+	s.capturing = capturing
+}
+
 // ShouldCapture returns true if this storage wants to capture events for the given context
 func (s *CaptureStorage) ShouldCapture(ctx context.Context) bool {
+	if !s.capturing {
+		return false
+	}
 	switch s.captureMode {
 	case CaptureModeGlobal:
 		return true

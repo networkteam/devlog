@@ -656,7 +656,7 @@ type CaptureStatusResponse struct {
 	Mode   string `json:"mode,omitempty"` // "session" or "global"
 }
 
-// captureStart handles POST /capture/start - creates a new capture session
+// captureStart handles POST /capture/start - creates or resumes a capture session
 func (h *Handler) captureStart(w http.ResponseWriter, r *http.Request) {
 	sessionID, ok := h.getSessionID(r)
 	if !ok {
@@ -670,13 +670,23 @@ func (h *Handler) captureStart(w http.ResponseWriter, r *http.Request) {
 		mode = collector.CaptureModeGlobal
 	}
 
-	// Check if already capturing
+	// Check if session already exists (may be paused or active)
 	h.sessionsMu.Lock()
 	if state, exists := h.sessions[sessionID]; exists {
 		h.sessionsMu.Unlock()
-		// Already capturing, get current mode from storage
+		// Session exists, resume capturing with potentially new mode
 		if storage := h.eventAggregator.GetStorage(state.storageID); storage != nil {
-			mode = storage.(*collector.CaptureStorage).CaptureMode()
+			captureStorage := storage.(*collector.CaptureStorage)
+			oldMode := captureStorage.CaptureMode()
+			captureStorage.SetCapturing(true)
+			captureStorage.SetCaptureMode(mode)
+
+			// Handle cookie based on mode change
+			if mode == collector.CaptureModeSession && oldMode != collector.CaptureModeSession {
+				h.setSessionCookie(w, sessionID)
+			} else if mode == collector.CaptureModeGlobal && oldMode == collector.CaptureModeSession {
+				h.clearSessionCookie(w, sessionID)
+			}
 		}
 		h.respondWithCaptureState(w, r, sessionID, true, mode)
 		return
@@ -703,7 +713,7 @@ func (h *Handler) captureStart(w http.ResponseWriter, r *http.Request) {
 	h.respondWithCaptureState(w, r, sessionID, true, mode)
 }
 
-// captureStop handles POST /capture/stop - stops capture and removes storage
+// captureStop handles POST /capture/stop - pauses capture but keeps session and events
 func (h *Handler) captureStop(w http.ResponseWriter, r *http.Request) {
 	sessionID, hasSession := h.getSessionID(r)
 	if !hasSession {
@@ -711,22 +721,18 @@ func (h *Handler) captureStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.sessionsMu.Lock()
-	state, exists := h.sessions[sessionID]
-	if exists {
-		// Close and unregister storage
-		if storage := h.eventAggregator.GetStorage(state.storageID); storage != nil {
-			storage.Close()
-		}
-		h.eventAggregator.UnregisterStorage(state.storageID)
-		delete(h.sessions, sessionID)
+	storage := h.getSessionStorage(sessionID)
+	if storage == nil {
+		h.respondWithCaptureState(w, r, sessionID, false, collector.CaptureModeSession)
+		return
 	}
-	h.sessionsMu.Unlock()
 
-	// Clear session cookie
-	h.clearSessionCookie(w, sessionID)
+	// Pause capturing - keep storage, session, and events intact
+	storage.SetCapturing(false)
 
-	h.respondWithCaptureState(w, r, sessionID, false, collector.CaptureModeSession)
+	// Keep session cookie so user can resume
+	// Respond with active=false but preserve the mode
+	h.respondWithCaptureState(w, r, sessionID, false, storage.CaptureMode())
 }
 
 // captureMode handles POST /capture/mode - changes capture mode
@@ -785,7 +791,7 @@ func (h *Handler) captureStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.respondWithCaptureState(w, r, sessionID, true, storage.CaptureMode())
+	h.respondWithCaptureState(w, r, sessionID, storage.IsCapturing(), storage.CaptureMode())
 }
 
 // respondWithCaptureState responds with capture state as HTML for HTMX or JSON for API
