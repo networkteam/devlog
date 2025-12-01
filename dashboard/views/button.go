@@ -6,9 +6,10 @@ type ButtonVariant string
 type ButtonSize string
 
 const (
-	ButtonVariantDefault   ButtonVariant = ""
-	ButtonVariantOutline   ButtonVariant = "outline"
-	ButtonVariantSecondary ButtonVariant = "secondary"
+	ButtonVariantDefault     ButtonVariant = ""
+	ButtonVariantOutline     ButtonVariant = "outline"
+	ButtonVariantOutlineDark ButtonVariant = "outline-dark"
+	ButtonVariantSecondary   ButtonVariant = "secondary"
 
 	ButtonSizeSm   ButtonSize = "sm"
 	ButtonSizeIcon ButtonSize = "icon"
@@ -31,6 +32,8 @@ func buttonClasses(props ButtonProps) string {
 	switch props.Variant {
 	case ButtonVariantOutline:
 		classes = append(classes, "border border-neutral-200 bg-white hover:bg-neutral-200 text-black")
+	case ButtonVariantOutlineDark:
+		classes = append(classes, "border border-header-border bg-white/10 hover:bg-white/20 text-white")
 	case ButtonVariantSecondary:
 		classes = append(classes, "bg-neutral-200 text-black hover:bg-neutral-200/80")
 	default: // DefaultVariant
