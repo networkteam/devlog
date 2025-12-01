@@ -309,3 +309,104 @@ func TestEventAggregator_EndEventWithoutStart(t *testing.T) {
 	events := storage.GetEvents(10)
 	assert.Len(t, events, 0)
 }
+
+func TestEventAggregator_MultipleTopLevelEvents(t *testing.T) {
+	aggregator := collector.NewEventAggregator()
+	defer aggregator.Close()
+
+	sessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeGlobal)
+	aggregator.RegisterStorage(storage)
+
+	ctx := context.Background()
+
+	// Event 1: using CollectEvent
+	aggregator.CollectEvent(ctx, "Event 1")
+
+	// Event 2: using CollectEvent
+	aggregator.CollectEvent(ctx, "Event 2")
+
+	// Event 3: using StartEvent/EndEvent
+	ctx3 := aggregator.StartEvent(ctx)
+	aggregator.EndEvent(ctx3, "Event 3")
+
+	// Verify all events were collected
+	events := storage.GetEvents(10)
+	require.Len(t, events, 3)
+
+	// Check we have all three events
+	foundEvents := make(map[string]bool)
+	for _, evt := range events {
+		if data, ok := evt.Data.(string); ok {
+			foundEvents[data] = true
+		}
+	}
+
+	assert.True(t, foundEvents["Event 1"], "Event 1 should be found")
+	assert.True(t, foundEvents["Event 2"], "Event 2 should be found")
+	assert.True(t, foundEvents["Event 3"], "Event 3 should be found")
+}
+
+func TestEventAggregator_WithCustomData(t *testing.T) {
+	aggregator := collector.NewEventAggregator()
+	defer aggregator.Close()
+
+	sessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeGlobal)
+	aggregator.RegisterStorage(storage)
+
+	// Create custom data types to collect
+	type HTTPData struct {
+		Method string
+		URL    string
+		Status int
+	}
+
+	type LogData struct {
+		Level   string
+		Message string
+	}
+
+	ctx := context.Background()
+
+	// HTTP event
+	httpData := HTTPData{
+		Method: "GET",
+		URL:    "https://example.com",
+		Status: 200,
+	}
+	aggregator.CollectEvent(ctx, httpData)
+
+	// Log event
+	logData := LogData{
+		Level:   "INFO",
+		Message: "This is a log message",
+	}
+	aggregator.CollectEvent(ctx, logData)
+
+	// Verify both events were collected
+	events := storage.GetEvents(10)
+	require.Len(t, events, 2)
+
+	// Check we can retrieve the typed data
+	foundHTTP := false
+	foundLog := false
+
+	for _, evt := range events {
+		switch data := evt.Data.(type) {
+		case HTTPData:
+			assert.Equal(t, "GET", data.Method)
+			assert.Equal(t, "https://example.com", data.URL)
+			assert.Equal(t, 200, data.Status)
+			foundHTTP = true
+
+		case LogData:
+			assert.Equal(t, "INFO", data.Level)
+			assert.Equal(t, "This is a log message", data.Message)
+			foundLog = true
+		}
+	}
+
+	assert.True(t, foundHTTP, "HTTP event should be found")
+	assert.True(t, foundLog, "Log event should be found")
+}

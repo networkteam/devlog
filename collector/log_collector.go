@@ -11,7 +11,6 @@ import (
 type LogCollector struct {
 	buffer          *RingBuffer[slog.Record]
 	notifier        *Notifier[slog.Record]
-	eventCollector  *EventCollector  // Deprecated: use eventAggregator
 	eventAggregator *EventAggregator
 }
 
@@ -22,8 +21,6 @@ func (c *LogCollector) Collect(ctx context.Context, record slog.Record) {
 	c.notifier.Notify(record)
 	if c.eventAggregator != nil {
 		c.eventAggregator.CollectEvent(ctx, record)
-	} else if c.eventCollector != nil {
-		c.eventCollector.CollectEvent(ctx, record)
 	}
 }
 
@@ -51,10 +48,6 @@ type LogOptions struct {
 	// NotifierOptions are options for notification about new logs
 	NotifierOptions *NotifierOptions
 
-	// EventCollector is an optional event collector for collecting logs as grouped events
-	// Deprecated: Use EventAggregator instead
-	EventCollector *EventCollector
-
 	// EventAggregator is the aggregator for collecting logs as grouped events
 	EventAggregator *EventAggregator
 }
@@ -67,7 +60,6 @@ func NewLogCollectorWithOptions(capacity uint64, options LogOptions) *LogCollect
 
 	collector := &LogCollector{
 		notifier:        NewNotifierWithOptions[slog.Record](notifierOptions),
-		eventCollector:  options.EventCollector,
 		eventAggregator: options.EventAggregator,
 	}
 	if capacity > 0 {

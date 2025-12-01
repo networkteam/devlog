@@ -25,7 +25,6 @@ type DBQuery struct {
 type DBQueryCollector struct {
 	buffer          *RingBuffer[DBQuery]
 	notifier        *Notifier[DBQuery]
-	eventCollector  *EventCollector  // Deprecated: use eventAggregator
 	eventAggregator *EventAggregator
 }
 
@@ -36,8 +35,6 @@ func (c *DBQueryCollector) Collect(ctx context.Context, query DBQuery) {
 	c.notifier.Notify(query)
 	if c.eventAggregator != nil {
 		c.eventAggregator.CollectEvent(ctx, query)
-	} else if c.eventCollector != nil {
-		c.eventCollector.CollectEvent(ctx, query)
 	}
 }
 
@@ -56,10 +53,6 @@ func (c *DBQueryCollector) Subscribe(ctx context.Context) <-chan DBQuery {
 type DBQueryOptions struct {
 	// NotifierOptions are options for notification about new queries
 	NotifierOptions *NotifierOptions
-
-	// EventCollector is an optional event collector for collecting logs as grouped events
-	// Deprecated: Use EventAggregator instead
-	EventCollector *EventCollector
 
 	// EventAggregator is the aggregator for collecting queries as grouped events
 	EventAggregator *EventAggregator
@@ -81,7 +74,6 @@ func NewDBQueryCollectorWithOptions(capacity uint64, options DBQueryOptions) *DB
 
 	collector := &DBQueryCollector{
 		notifier:        NewNotifierWithOptions[DBQuery](notifierOptions),
-		eventCollector:  options.EventCollector,
 		eventAggregator: options.EventAggregator,
 	}
 	if capacity > 0 {

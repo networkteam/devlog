@@ -25,10 +25,6 @@ type HTTPClientOptions struct {
 	// NotifierOptions are options for notification about new requests
 	NotifierOptions *NotifierOptions
 
-	// EventCollector is an optional event collector for collecting requests as grouped events
-	// Deprecated: Use EventAggregator instead
-	EventCollector *EventCollector
-
 	// EventAggregator is the aggregator for collecting requests as grouped events
 	EventAggregator *EventAggregator
 }
@@ -50,7 +46,6 @@ type HTTPClientCollector struct {
 
 	options         HTTPClientOptions
 	notifier        *Notifier[HTTPClientRequest]
-	eventCollector  *EventCollector  // Deprecated: use eventAggregator
 	eventAggregator *EventAggregator
 
 	mu sync.RWMutex
@@ -71,7 +66,6 @@ func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOption
 	collector := &HTTPClientCollector{
 		options:         options,
 		notifier:        NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
-		eventCollector:  options.EventCollector,
 		eventAggregator: options.EventAggregator,
 	}
 	if capacity > 0 {
@@ -180,13 +174,6 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		newCtx := t.collector.eventAggregator.StartEvent(ctx)
 		defer func(req *HTTPClientRequest) {
 			t.collector.eventAggregator.EndEvent(newCtx, *req)
-		}(&httpReq)
-
-		req = req.WithContext(newCtx)
-	} else if t.collector.eventCollector != nil {
-		newCtx := t.collector.eventCollector.StartEvent(ctx)
-		defer func(req *HTTPClientRequest) {
-			t.collector.eventCollector.EndEvent(newCtx, *req)
 		}(&httpReq)
 
 		req = req.WithContext(newCtx)

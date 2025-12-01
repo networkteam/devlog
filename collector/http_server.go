@@ -43,10 +43,6 @@ type HTTPServerOptions struct {
 	// NotifierOptions are options for notification about new requests
 	NotifierOptions *NotifierOptions
 
-	// EventCollector is an optional event collector for collecting requests as grouped events
-	// Deprecated: Use EventAggregator instead
-	EventCollector *EventCollector
-
 	// EventAggregator is the aggregator for collecting requests as grouped events
 	EventAggregator *EventAggregator
 }
@@ -69,7 +65,6 @@ type HTTPServerCollector struct {
 
 	options         HTTPServerOptions
 	notifier        *Notifier[HTTPServerRequest]
-	eventCollector  *EventCollector  // Deprecated: use eventAggregator
 	eventAggregator *EventAggregator
 
 	mu sync.RWMutex
@@ -90,7 +85,6 @@ func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOption
 	collector := &HTTPServerCollector{
 		options:         options,
 		notifier:        NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
-		eventCollector:  options.EventCollector,
 		eventAggregator: options.EventAggregator,
 	}
 	if capacity > 0 {
@@ -211,13 +205,6 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 			newCtx := c.eventAggregator.StartEvent(ctx)
 			defer func(req *HTTPServerRequest) {
 				c.eventAggregator.EndEvent(newCtx, *req)
-			}(&httpReq)
-
-			r = r.WithContext(newCtx)
-		} else if c.eventCollector != nil {
-			newCtx := c.eventCollector.StartEvent(ctx)
-			defer func(req *HTTPServerRequest) {
-				c.eventCollector.EndEvent(newCtx, *req)
 			}(&httpReq)
 
 			r = r.WithContext(newCtx)
