@@ -30,7 +30,7 @@ func TestEventAggregator_ShouldCapture_SessionModeMatch(t *testing.T) {
 	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeSession)
 	aggregator.RegisterStorage(storage)
 
-	ctx := collector.WithSessionID(context.Background(), sessionID)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{sessionID})
 
 	assert.True(t, aggregator.ShouldCapture(ctx))
 }
@@ -44,7 +44,7 @@ func TestEventAggregator_ShouldCapture_SessionModeNoMatch(t *testing.T) {
 	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeSession)
 	aggregator.RegisterStorage(storage)
 
-	ctx := collector.WithSessionID(context.Background(), otherSessionID)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{otherSessionID})
 
 	assert.False(t, aggregator.ShouldCapture(ctx))
 }
@@ -62,7 +62,7 @@ func TestEventAggregator_ShouldCapture_GlobalMode(t *testing.T) {
 
 	// Even with a different session ID
 	otherSessionID := uuid.Must(uuid.NewV4())
-	ctx := collector.WithSessionID(context.Background(), otherSessionID)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{otherSessionID})
 	assert.True(t, aggregator.ShouldCapture(ctx))
 }
 
@@ -81,7 +81,7 @@ func TestEventAggregator_CollectEvent_DispatchesToMatchingStorages(t *testing.T)
 
 	// Event with session A should go to both storages
 	// (A matches session, B is global)
-	ctx := collector.WithSessionID(context.Background(), sessionA)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{sessionA})
 	aggregator.CollectEvent(ctx, "test event")
 
 	eventsA := storageA.GetEvents(10)
@@ -126,7 +126,7 @@ func TestEventAggregator_CollectEvent_NoCapture_NoDispatch(t *testing.T) {
 
 	// Event with different session should not be captured
 	otherSessionID := uuid.Must(uuid.NewV4())
-	ctx := collector.WithSessionID(context.Background(), otherSessionID)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{otherSessionID})
 	aggregator.CollectEvent(ctx, "test event")
 
 	events := storage.GetEvents(10)

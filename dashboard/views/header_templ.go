@@ -39,6 +39,7 @@ func Header(capture CaptureState) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		opts := MustGetHandlerOptions(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<header class=\"bg-header-bg border-b border-header-border p-3 md:p-4\"><div class=\"flex flex-wrap items-center gap-3 sm:gap-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -82,9 +83,9 @@ func Header(capture CaptureState) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/event-list", MustGetHandlerOptions(ctx).PathPrefix))
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/event-list", opts.PathPrefix, opts.SessionID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 26, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 27, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -127,6 +128,7 @@ func CaptureControls(capture CaptureState) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		opts := MustGetHandlerOptions(ctx)
 		mode := capture.Mode
 		if mode == "" {
 			mode = "session"
@@ -138,7 +140,7 @@ func CaptureControls(capture CaptureState) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(mode)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 42, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 44, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -168,9 +170,9 @@ func CaptureControls(capture CaptureState) templ.Component {
 		})
 		templ_7745c5c3_Err = TapeButton(TapeButtonProps{Pressed: capture.Active, Color: TapeButtonColorRed}, templ.Attributes{
 			"title":                "Start capture",
-			"hx-post":              fmt.Sprintf("%s/capture/start", MustGetHandlerOptions(ctx).PathPrefix),
+			"hx-post":              fmt.Sprintf("%s/s/%s/capture/start", opts.PathPrefix, opts.SessionID),
 			"hx-vals":              "js:{mode: document.getElementById('capture-controls').dataset.mode}",
-			"hx-on::after-request": "if(event.detail.successful) htmx.trigger('#event-list', 'sse:reconnect')",
+			"hx-on::after-request": "if(event.detail.successful) htmx.trigger('#event-list-container', 'capture-state-changed')",
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -194,8 +196,9 @@ func CaptureControls(capture CaptureState) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = TapeButton(TapeButtonProps{Pressed: !capture.Active, Color: TapeButtonColorGray}, templ.Attributes{
-			"title":   "Stop capture",
-			"hx-post": fmt.Sprintf("%s/capture/stop", MustGetHandlerOptions(ctx).PathPrefix),
+			"title":                "Stop capture",
+			"hx-post":              fmt.Sprintf("%s/s/%s/capture/stop", opts.PathPrefix, opts.SessionID),
+			"hx-on::after-request": "if(event.detail.successful) htmx.trigger('#event-list-container', 'capture-state-changed')",
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -348,6 +351,7 @@ func CaptureMode(mode string, capturing bool) templ.Component {
 			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		opts := MustGetHandlerOptions(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"inline-flex rounded-md border border-header-border bg-header-bg/50 text-sm overflow-hidden\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -376,9 +380,9 @@ func CaptureMode(mode string, capturing bool) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var15 string
-			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/capture/mode?mode=session", MustGetHandlerOptions(ctx).PathPrefix))
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/capture/mode?mode=session", opts.PathPrefix, opts.SessionID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 119, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 123, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -411,9 +415,9 @@ func CaptureMode(mode string, capturing bool) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var18 string
-			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/capture/mode?mode=global", MustGetHandlerOptions(ctx).PathPrefix))
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/capture/mode?mode=global", opts.PathPrefix, opts.SessionID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 128, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 132, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {

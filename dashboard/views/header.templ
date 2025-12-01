@@ -11,6 +11,7 @@ type CaptureState struct {
 }
 
 templ Header(capture CaptureState) {
+	{{ opts := MustGetHandlerOptions(ctx) }}
 	<header class="bg-header-bg border-b border-header-border p-3 md:p-4">
 		<div class="flex flex-wrap items-center gap-3 sm:gap-6">
 			@devlogLogo()
@@ -23,7 +24,7 @@ templ Header(capture CaptureState) {
 							Size:    ButtonSizeIcon,
 						}) }
 					title="Clear list"
-					hx-delete={ fmt.Sprintf("%s/event-list", MustGetHandlerOptions(ctx).PathPrefix) }
+					hx-delete={ fmt.Sprintf("%s/s/%s/event-list", opts.PathPrefix, opts.SessionID) }
 					hx-target="#split-layout"
 					hx-swap="outerHTML"
 				>
@@ -35,6 +36,7 @@ templ Header(capture CaptureState) {
 }
 
 templ CaptureControls(capture CaptureState) {
+	{{ opts := MustGetHandlerOptions(ctx) }}
 	{{ mode := capture.Mode }}
 	if mode == "" {
 		{{ mode = "session" }}
@@ -43,15 +45,16 @@ templ CaptureControls(capture CaptureState) {
 		<div class="flex items-center gap-2">
 			@TapeButton(TapeButtonProps{Pressed: capture.Active, Color: TapeButtonColorRed}, templ.Attributes{
 				"title":                "Start capture",
-				"hx-post":              fmt.Sprintf("%s/capture/start", MustGetHandlerOptions(ctx).PathPrefix),
+				"hx-post":              fmt.Sprintf("%s/s/%s/capture/start", opts.PathPrefix, opts.SessionID),
 				"hx-vals":              "js:{mode: document.getElementById('capture-controls').dataset.mode}",
-				"hx-on::after-request": "if(event.detail.successful) htmx.trigger('#event-list', 'sse:reconnect')",
+				"hx-on::after-request": "if(event.detail.successful) htmx.trigger('#event-list-container', 'capture-state-changed')",
 			}) {
 				@iconRecord()
 			}
 			@TapeButton(TapeButtonProps{Pressed: !capture.Active, Color: TapeButtonColorGray}, templ.Attributes{
-				"title":   "Stop capture",
-				"hx-post": fmt.Sprintf("%s/capture/stop", MustGetHandlerOptions(ctx).PathPrefix),
+				"title":                "Stop capture",
+				"hx-post":              fmt.Sprintf("%s/s/%s/capture/stop", opts.PathPrefix, opts.SessionID),
+				"hx-on::after-request": "if(event.detail.successful) htmx.trigger('#event-list-container', 'capture-state-changed')",
 			}) {
 				@iconStop()
 			}
@@ -111,12 +114,13 @@ func tapeButtonClasses(props TapeButtonProps) string {
 }
 
 templ CaptureMode(mode string, capturing bool) {
+	{{ opts := MustGetHandlerOptions(ctx) }}
 	<div class="inline-flex rounded-md border border-header-border bg-header-bg/50 text-sm overflow-hidden">
 		if capturing {
 			<button
 				type="button"
 				class={ "px-3 py-2 cursor-pointer transition-colors", templ.KV("bg-devlog-cyan/20 text-devlog-cyan", mode == "session"), templ.KV("text-neutral-400 hover:bg-white/10 hover:text-white", mode != "session") }
-				hx-post={ fmt.Sprintf("%s/capture/mode?mode=session", MustGetHandlerOptions(ctx).PathPrefix) }
+				hx-post={ fmt.Sprintf("%s/s/%s/capture/mode?mode=session", opts.PathPrefix, opts.SessionID) }
 				hx-target="#capture-controls"
 				hx-swap="outerHTML"
 			>
@@ -125,7 +129,7 @@ templ CaptureMode(mode string, capturing bool) {
 			<button
 				type="button"
 				class={ "px-3 py-2 cursor-pointer transition-colors border-l border-header-border", templ.KV("bg-devlog-cyan/20 text-devlog-cyan", mode == "global"), templ.KV("text-neutral-400 hover:bg-white/10 hover:text-white", mode != "global") }
-				hx-post={ fmt.Sprintf("%s/capture/mode?mode=global", MustGetHandlerOptions(ctx).PathPrefix) }
+				hx-post={ fmt.Sprintf("%s/s/%s/capture/mode?mode=global", opts.PathPrefix, opts.SessionID) }
 				hx-target="#capture-controls"
 				hx-swap="outerHTML"
 			>

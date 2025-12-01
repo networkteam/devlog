@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gofrs/uuid"
 )
@@ -92,11 +93,11 @@ func (s *CaptureStorage) ShouldCapture(ctx context.Context) bool {
 	case CaptureModeGlobal:
 		return true
 	case CaptureModeSession:
-		ctxSessionID, ok := SessionIDFromContext(ctx)
+		sessionIDs, ok := SessionIDsFromContext(ctx)
 		if !ok {
 			return false
 		}
-		return ctxSessionID == s.sessionID
+		return slices.Contains(sessionIDs, s.sessionID)
 	default:
 		return false
 	}

@@ -2,7 +2,9 @@ package views
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -65,6 +67,26 @@ func chromaStyles() templ.Component {
 type HandlerOptions struct {
 	PathPrefix    string
 	TruncateAfter uint64
+	SessionID     string
+	CaptureActive bool
+	CaptureMode   string // "session" or "global"
+}
+
+// BuildEventDetailURL builds a URL for event detail view, preserving capture state
+func (opts HandlerOptions) BuildEventDetailURL(eventID string) string {
+	base := fmt.Sprintf("%s/s/%s/", opts.PathPrefix, opts.SessionID)
+	params := url.Values{}
+	if eventID != "" {
+		params.Set("id", eventID)
+	}
+	if opts.CaptureActive {
+		params.Set("capture", "true")
+		params.Set("mode", opts.CaptureMode)
+	}
+	if len(params) > 0 {
+		return base + "?" + params.Encode()
+	}
+	return base
 }
 
 // Context key for HandlerOptions

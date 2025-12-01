@@ -29,7 +29,7 @@ func TestCaptureStorage_ShouldCapture_SessionMode_WrongSession(t *testing.T) {
 	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeSession)
 	defer storage.Close()
 
-	ctx := collector.WithSessionID(context.Background(), otherSessionID)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{otherSessionID})
 
 	assert.False(t, storage.ShouldCapture(ctx))
 }
@@ -39,7 +39,19 @@ func TestCaptureStorage_ShouldCapture_SessionMode_MatchingSession(t *testing.T) 
 	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeSession)
 	defer storage.Close()
 
-	ctx := collector.WithSessionID(context.Background(), sessionID)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{sessionID})
+
+	assert.True(t, storage.ShouldCapture(ctx))
+}
+
+func TestCaptureStorage_ShouldCapture_SessionMode_MultipleSessionsInContext(t *testing.T) {
+	sessionID := uuid.Must(uuid.NewV4())
+	otherSessionID := uuid.Must(uuid.NewV4())
+	storage := collector.NewCaptureStorage(sessionID, 100, collector.CaptureModeSession)
+	defer storage.Close()
+
+	// Context has multiple session IDs, including the one we're looking for
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{otherSessionID, sessionID})
 
 	assert.True(t, storage.ShouldCapture(ctx))
 }
@@ -54,7 +66,7 @@ func TestCaptureStorage_ShouldCapture_GlobalMode_AlwaysTrue(t *testing.T) {
 
 	// Even with a different session ID
 	otherSessionID := uuid.Must(uuid.NewV4())
-	ctx := collector.WithSessionID(context.Background(), otherSessionID)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{otherSessionID})
 	assert.True(t, storage.ShouldCapture(ctx))
 }
 

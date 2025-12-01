@@ -941,8 +941,8 @@ func TestHTTPServerCollector_WithEventAggregator_SessionMode_Match(t *testing.T)
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
-		Name:  collector.SessionCookieName,
-		Value: sessionID.String(),
+		Name:  collector.SessionCookiePrefix + sessionID.String(),
+		Value: "1",
 	})
 
 	resp, err := client.Do(req)

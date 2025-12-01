@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,8 +18,9 @@ func parseUUID(s string) (uuid.UUID, error) {
 	return uuid.FromString(s)
 }
 
-// SessionCookieName is the name of the cookie used to identify capture sessions
-const SessionCookieName = "devlog_session"
+// SessionCookiePrefix is the prefix for cookies used to identify capture sessions.
+// Each session gets its own cookie named "devlog_session_{uuid}".
+const SessionCookiePrefix = "devlog_session_"
 
 // HTTPServerOptions configures the HTTP server collector
 type HTTPServerOptions struct {
@@ -133,12 +135,20 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 
 		ctx := r.Context()
 
-		// Extract session cookie and add to context
-		if cookie, err := r.Cookie(SessionCookieName); err == nil {
-			if sessionID, err := parseUUID(cookie.Value); err == nil {
-				ctx = WithSessionID(ctx, sessionID)
-				r = r.WithContext(ctx)
+		// Extract session IDs from cookies and add to context
+		// Each session has its own cookie named "devlog_session_{uuid}"
+		var sessionIDs []uuid.UUID
+		for _, cookie := range r.Cookies() {
+			if strings.HasPrefix(cookie.Name, SessionCookiePrefix) {
+				idStr := strings.TrimPrefix(cookie.Name, SessionCookiePrefix)
+				if id, err := parseUUID(idStr); err == nil {
+					sessionIDs = append(sessionIDs, id)
+				}
 			}
+		}
+		if len(sessionIDs) > 0 {
+			ctx = WithSessionIDs(ctx, sessionIDs)
+			r = r.WithContext(ctx)
 		}
 
 		// Check if we should capture this request (using EventAggregator)

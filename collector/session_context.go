@@ -6,20 +6,21 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-type sessionIDKeyType struct{}
+type sessionIDsKeyType struct{}
 
-var sessionIDKey = sessionIDKeyType{}
+var sessionIDsKey = sessionIDsKeyType{}
 
-// WithSessionID returns a new context with the session ID added.
-func WithSessionID(ctx context.Context, sessionID uuid.UUID) context.Context {
-	return context.WithValue(ctx, sessionIDKey, sessionID)
+// WithSessionIDs returns a new context with the session IDs added.
+// Multiple session IDs are used when multiple dashboard tabs have capture enabled.
+func WithSessionIDs(ctx context.Context, sessionIDs []uuid.UUID) context.Context {
+	return context.WithValue(ctx, sessionIDsKey, sessionIDs)
 }
 
-// SessionIDFromContext retrieves the session ID from the context.
-// Returns the session ID and true if found, or uuid.Nil and false if not set.
-func SessionIDFromContext(ctx context.Context) (uuid.UUID, bool) {
-	if sessionID, ok := ctx.Value(sessionIDKey).(uuid.UUID); ok {
-		return sessionID, true
+// SessionIDsFromContext retrieves the session IDs from the context.
+// Returns the session IDs and true if found, or nil and false if not set.
+func SessionIDsFromContext(ctx context.Context) ([]uuid.UUID, bool) {
+	if sessionIDs, ok := ctx.Value(sessionIDsKey).([]uuid.UUID); ok {
+		return sessionIDs, true
 	}
-	return uuid.Nil, false
+	return nil, false
 }

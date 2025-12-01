@@ -10,32 +10,46 @@ import (
 	"github.com/networkteam/devlog/collector"
 )
 
-func TestWithSessionID_AddsToContext(t *testing.T) {
+func TestWithSessionIDs_AddsToContext(t *testing.T) {
 	ctx := context.Background()
 	sessionID := uuid.Must(uuid.NewV4())
 
-	newCtx := collector.WithSessionID(ctx, sessionID)
+	newCtx := collector.WithSessionIDs(ctx, []uuid.UUID{sessionID})
 
-	retrievedID, ok := collector.SessionIDFromContext(newCtx)
+	retrievedIDs, ok := collector.SessionIDsFromContext(newCtx)
 	assert.True(t, ok)
-	assert.Equal(t, sessionID, retrievedID)
+	assert.Equal(t, []uuid.UUID{sessionID}, retrievedIDs)
 }
 
-func TestSessionIDFromContext_NotSet(t *testing.T) {
+func TestWithSessionIDs_MultipleIDs(t *testing.T) {
+	ctx := context.Background()
+	sessionID1 := uuid.Must(uuid.NewV4())
+	sessionID2 := uuid.Must(uuid.NewV4())
+
+	newCtx := collector.WithSessionIDs(ctx, []uuid.UUID{sessionID1, sessionID2})
+
+	retrievedIDs, ok := collector.SessionIDsFromContext(newCtx)
+	assert.True(t, ok)
+	assert.Len(t, retrievedIDs, 2)
+	assert.Contains(t, retrievedIDs, sessionID1)
+	assert.Contains(t, retrievedIDs, sessionID2)
+}
+
+func TestSessionIDsFromContext_NotSet(t *testing.T) {
 	ctx := context.Background()
 
-	retrievedID, ok := collector.SessionIDFromContext(ctx)
+	retrievedIDs, ok := collector.SessionIDsFromContext(ctx)
 
 	assert.False(t, ok)
-	assert.Equal(t, uuid.Nil, retrievedID)
+	assert.Nil(t, retrievedIDs)
 }
 
-func TestSessionIDFromContext_Set(t *testing.T) {
+func TestSessionIDsFromContext_Set(t *testing.T) {
 	sessionID := uuid.Must(uuid.NewV4())
-	ctx := collector.WithSessionID(context.Background(), sessionID)
+	ctx := collector.WithSessionIDs(context.Background(), []uuid.UUID{sessionID})
 
-	retrievedID, ok := collector.SessionIDFromContext(ctx)
+	retrievedIDs, ok := collector.SessionIDsFromContext(ctx)
 
 	assert.True(t, ok)
-	assert.Equal(t, sessionID, retrievedID)
+	assert.Equal(t, []uuid.UUID{sessionID}, retrievedIDs)
 }
