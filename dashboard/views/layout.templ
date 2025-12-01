@@ -19,6 +19,11 @@ templ Layout(capture CaptureState) {
 			<title>devlog</title>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<link rel="icon" type="image/x-icon" href={ fmt.Sprintf("%s/static/favicon.ico", MustGetHandlerOptions(ctx).PathPrefix) }/>
+			<link rel="icon" type="image/png" sizes="32x32" href={ fmt.Sprintf("%s/static/favicon-32x32.png", MustGetHandlerOptions(ctx).PathPrefix) }/>
+			<link rel="icon" type="image/png" sizes="16x16" href={ fmt.Sprintf("%s/static/favicon-16x16.png", MustGetHandlerOptions(ctx).PathPrefix) }/>
+			<link rel="apple-touch-icon" sizes="180x180" href={ fmt.Sprintf("%s/static/apple-touch-icon.png", MustGetHandlerOptions(ctx).PathPrefix) }/>
+			<link rel="manifest" href={ fmt.Sprintf("%s/static/site.webmanifest", MustGetHandlerOptions(ctx).PathPrefix) }/>
+			<meta name="theme-color" content="#0D0A29"/>
 			<link rel="stylesheet" href={ cachebuster(fmt.Sprintf("%s/static/main.css", MustGetHandlerOptions(ctx).PathPrefix)) } type="text/css"/>
 			<script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
 			<script src="https://unpkg.com/htmx-ext-sse@2.2.3" integrity="sha384-Y4gc0CK6Kg+hmulDc6rZPJu0tqvk7EWlih0Oh+2OkAi1ZDlCbBDCQEE2uVk472Ky" crossorigin="anonymous"></script>

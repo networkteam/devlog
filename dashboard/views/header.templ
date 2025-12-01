@@ -12,19 +12,10 @@ type CaptureState struct {
 
 templ Header(capture CaptureState) {
 	<header class="bg-header-bg border-b border-header-border p-3 md:p-4">
-		<div class="mb-6 flex justify-between items-center">
+		<div class="flex flex-wrap items-center gap-3 sm:gap-6">
 			@devlogLogo()
-		</div>
-		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
 			@CaptureControls(capture)
-			<div class="relative flex-1 flex justify-between gap-2">
-			/*
-				<input
-					class="h-10 w-full max-w-sm rounded-md bg-white/10 border border-header-border px-3 py-2 text-base text-white placeholder:text-neutral-400 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-devlog-cyan disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-					placeholder="Search..."
-				/>
-				*/
-				<span></span>
+			<div class="flex flex-1 justify-end">
 				<button
 					class={ buttonClasses(
 						ButtonProps{
