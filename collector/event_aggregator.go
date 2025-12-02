@@ -101,6 +101,7 @@ func (a *EventAggregator) EndEvent(ctx context.Context, data any) {
 
 	evt.Data = data
 	evt.End = time.Now()
+	evt.Size = evt.calculateSize()
 
 	// Link to parent if exists
 	if evt.GroupID != nil {
@@ -132,6 +133,7 @@ func (a *EventAggregator) CollectEvent(ctx context.Context, data any) {
 		Start: now,
 		End:   now,
 	}
+	evt.Size = evt.calculateSize()
 
 	// Check if there's a parent group
 	outerGroupID, ok := groupIDFromContext(ctx)
@@ -169,4 +171,41 @@ func (a *EventAggregator) Close() {
 	}
 	a.storages = make(map[uuid.UUID]EventStorage)
 	a.openGroups = make(map[uuid.UUID]*Event)
+}
+
+// Stats holds aggregated statistics across all storages
+type Stats struct {
+	TotalMemory  uint64
+	EventCount   int
+	StorageCount int
+}
+
+// CalculateStats computes stats across all storages, de-duplicating events by ID
+func (a *EventAggregator) CalculateStats() Stats {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	seen := make(map[uuid.UUID]struct{})
+	var totalMemory uint64
+
+	for _, storage := range a.storages {
+		// Get all events from storage (use a large limit to get all)
+		events := storage.GetEvents(100000)
+		for _, event := range events {
+			if _, exists := seen[event.ID]; !exists {
+				seen[event.ID] = struct{}{}
+				totalMemory += event.Size
+				// Add children sizes
+				for _, child := range event.Children {
+					totalMemory += child.Size
+				}
+			}
+		}
+	}
+
+	return Stats{
+		TotalMemory:  totalMemory,
+		EventCount:   len(seen),
+		StorageCount: len(a.storages),
+	}
 }

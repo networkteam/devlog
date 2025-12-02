@@ -72,7 +72,7 @@ func TestHTTPServerCollector_BasicRequest(t *testing.T) {
 	assert.NotNil(t, serverReq.ResponseBody)
 	assert.Equal(t, "Hello, World!", serverReq.ResponseBody.String())
 	assert.True(t, serverReq.Duration() > 0)
-	assert.Equal(t, int64(13), serverReq.ResponseSize) // "Hello, World!" is 13 bytes
+	assert.Equal(t, uint64(13), serverReq.ResponseSize) // "Hello, World!" is 13 bytes
 }
 
 // Test for GET request with a body to ensure we capture it correctly
@@ -349,7 +349,7 @@ func TestHTTPServerCollector_LargeResponseBody(t *testing.T) {
 
 	// Verify the response body was captured but truncated
 	assert.NotNil(t, serverReq.ResponseBody)
-	assert.Equal(t, int64(100), serverReq.ResponseBody.Size()) // Should be truncated to 100 bytes
+	assert.Equal(t, uint64(100), serverReq.ResponseBody.Size()) // Should be truncated to 100 bytes
 	assert.True(t, serverReq.ResponseBody.IsTruncated())
 	assert.Equal(t, strings.Repeat("abcdefghij", 10), serverReq.ResponseBody.String())
 }
@@ -648,7 +648,7 @@ func TestHTTPServerCollector_UnreadRequestBodyCapture(t *testing.T) {
 				capturedBody := serverReq.RequestBody.String()
 				assert.Equal(t, tc.body, capturedBody, "Should capture the exact body content even when unread")
 				assert.True(t, serverReq.RequestBody.IsFullyCaptured(), "Body should be marked as fully captured")
-				assert.Equal(t, int64(len(tc.body)), serverReq.RequestBody.Size(), "Should capture the full body size")
+				assert.Equal(t, uint64(len(tc.body)), serverReq.RequestBody.Size(), "Should capture the full body size")
 			}
 		})
 	}

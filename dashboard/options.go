@@ -13,6 +13,8 @@ type handlerOptions struct {
 	StorageCapacity uint64
 	// SessionIdleTimeout is how long to wait after SSE disconnect before cleanup.
 	SessionIdleTimeout time.Duration
+	// MaxSessions is the maximum number of concurrent sessions (0 = unlimited).
+	MaxSessions int
 }
 
 // HandlerOption configures a dashboard Handler.
@@ -48,5 +50,13 @@ func WithSessionIdleTimeout(timeout time.Duration) HandlerOption {
 func WithTruncateAfter(limit uint64) HandlerOption {
 	return func(o *handlerOptions) {
 		o.TruncateAfter = limit
+	}
+}
+
+// WithMaxSessions sets the maximum number of concurrent sessions.
+// Default is 0 (unlimited).
+func WithMaxSessions(limit int) HandlerOption {
+	return func(o *handlerOptions) {
+		o.MaxSessions = limit
 	}
 }

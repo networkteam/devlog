@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/networkteam/devlog/collector"
 )
+
+// ErrMaxSessionsReached is returned when the maximum number of sessions has been reached
+var ErrMaxSessionsReached = errors.New("maximum number of sessions reached")
 
 // sessionState tracks a user's capture session
 type sessionState struct {
@@ -28,6 +32,7 @@ type SessionManager struct {
 
 	storageCapacity uint64
 	idleTimeout     time.Duration
+	maxSessions     int
 
 	cleanupCtx       context.Context
 	cleanupCtxCancel context.CancelFunc
@@ -38,6 +43,7 @@ type SessionManagerOptions struct {
 	EventAggregator *collector.EventAggregator
 	StorageCapacity uint64
 	IdleTimeout     time.Duration
+	MaxSessions     int // 0 means unlimited
 }
 
 // NewSessionManager creates a new SessionManager and starts the cleanup goroutine
@@ -59,6 +65,7 @@ func NewSessionManager(opts SessionManagerOptions) *SessionManager {
 		sessions:         make(map[uuid.UUID]*sessionState),
 		storageCapacity:  storageCapacity,
 		idleTimeout:      idleTimeout,
+		maxSessions:      opts.MaxSessions,
 		cleanupCtx:       cleanupCtx,
 		cleanupCtxCancel: cleanupCtxCancel,
 	}
@@ -87,18 +94,23 @@ func (sm *SessionManager) Get(sessionID uuid.UUID) *collector.CaptureStorage {
 }
 
 // GetOrCreate returns the storage for a session, creating it if it doesn't exist.
-// Returns the storage and whether it was newly created.
-func (sm *SessionManager) GetOrCreate(sessionID uuid.UUID, mode collector.CaptureMode) (*collector.CaptureStorage, bool) {
+// Returns the storage, whether it was newly created, and an error if the session limit is reached.
+func (sm *SessionManager) GetOrCreate(sessionID uuid.UUID, mode collector.CaptureMode) (*collector.CaptureStorage, bool, error) {
 	sm.sessionsMu.Lock()
 	defer sm.sessionsMu.Unlock()
 
 	// Check if already exists
 	if state, exists := sm.sessions[sessionID]; exists {
 		if storage := sm.eventAggregator.GetStorage(state.storageID); storage != nil {
-			return storage.(*collector.CaptureStorage), false
+			return storage.(*collector.CaptureStorage), false, nil
 		}
 		// Storage was removed but session state remains - clean it up
 		delete(sm.sessions, sessionID)
+	}
+
+	// Check max sessions limit
+	if sm.maxSessions > 0 && len(sm.sessions) >= sm.maxSessions {
+		return nil, false, ErrMaxSessionsReached
 	}
 
 	// Create new storage
@@ -110,7 +122,7 @@ func (sm *SessionManager) GetOrCreate(sessionID uuid.UUID, mode collector.Captur
 		lastActive: time.Now(),
 	}
 
-	return storage, true
+	return storage, true, nil
 }
 
 // Delete removes a session and its storage
@@ -142,6 +154,18 @@ func (sm *SessionManager) UpdateActivity(sessionID uuid.UUID) {
 // IdleTimeout returns the configured idle timeout duration
 func (sm *SessionManager) IdleTimeout() time.Duration {
 	return sm.idleTimeout
+}
+
+// SessionCount returns the current number of active sessions
+func (sm *SessionManager) SessionCount() int {
+	sm.sessionsMu.RLock()
+	defer sm.sessionsMu.RUnlock()
+	return len(sm.sessions)
+}
+
+// MaxSessions returns the configured maximum number of sessions (0 means unlimited)
+func (sm *SessionManager) MaxSessions() int {
+	return sm.maxSessions
 }
 
 // Close shuts down the session manager and cleans up all sessions

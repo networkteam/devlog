@@ -36,8 +36,11 @@ func TestSessionManager_GetOrCreate_CreatesNew(t *testing.T) {
 	defer sm.Close()
 
 	sessionID := uuid.Must(uuid.NewV4())
-	storage, created := sm.GetOrCreate(sessionID, collector.CaptureModeSession)
+	storage, created, err := sm.GetOrCreate(sessionID, collector.CaptureModeSession)
 
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if !created {
 		t.Error("expected created to be true for new session")
 	}
@@ -64,13 +67,19 @@ func TestSessionManager_GetOrCreate_ReturnsExisting(t *testing.T) {
 	sessionID := uuid.Must(uuid.NewV4())
 
 	// Create first
-	storage1, created1 := sm.GetOrCreate(sessionID, collector.CaptureModeSession)
+	storage1, created1, err := sm.GetOrCreate(sessionID, collector.CaptureModeSession)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if !created1 {
 		t.Error("expected created to be true for first call")
 	}
 
 	// Get existing
-	storage2, created2 := sm.GetOrCreate(sessionID, collector.CaptureModeGlobal)
+	storage2, created2, err := sm.GetOrCreate(sessionID, collector.CaptureModeGlobal)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if created2 {
 		t.Error("expected created to be false for second call")
 	}
@@ -97,7 +106,7 @@ func TestSessionManager_Get_AfterCreate(t *testing.T) {
 	sessionID := uuid.Must(uuid.NewV4())
 
 	// Create
-	storage1, _ := sm.GetOrCreate(sessionID, collector.CaptureModeGlobal)
+	storage1, _, _ := sm.GetOrCreate(sessionID, collector.CaptureModeGlobal)
 
 	// Get
 	storage2 := sm.Get(sessionID)
@@ -122,7 +131,7 @@ func TestSessionManager_Delete(t *testing.T) {
 	sessionID := uuid.Must(uuid.NewV4())
 
 	// Create
-	sm.GetOrCreate(sessionID, collector.CaptureModeSession)
+	_, _, _ = sm.GetOrCreate(sessionID, collector.CaptureModeSession)
 
 	// Delete
 	sm.Delete(sessionID)
@@ -166,7 +175,7 @@ func TestSessionManager_UpdateActivity(t *testing.T) {
 	sessionID := uuid.Must(uuid.NewV4())
 
 	// Create session
-	sm.GetOrCreate(sessionID, collector.CaptureModeSession)
+	_, _, _ = sm.GetOrCreate(sessionID, collector.CaptureModeSession)
 
 	// Record time before update
 	sm.sessionsMu.RLock()
@@ -215,8 +224,8 @@ func TestSessionManager_Close(t *testing.T) {
 	sessionID1 := uuid.Must(uuid.NewV4())
 	sessionID2 := uuid.Must(uuid.NewV4())
 
-	sm.GetOrCreate(sessionID1, collector.CaptureModeSession)
-	sm.GetOrCreate(sessionID2, collector.CaptureModeGlobal)
+	_, _, _ = sm.GetOrCreate(sessionID1, collector.CaptureModeSession)
+	_, _, _ = sm.GetOrCreate(sessionID2, collector.CaptureModeGlobal)
 
 	sm.Close()
 
@@ -241,7 +250,7 @@ func TestSessionManager_IdleCleanup(t *testing.T) {
 	sessionID := uuid.Must(uuid.NewV4())
 
 	// Create session
-	sm.GetOrCreate(sessionID, collector.CaptureModeSession)
+	_, _, _ = sm.GetOrCreate(sessionID, collector.CaptureModeSession)
 
 	// Session should exist
 	if sm.Get(sessionID) == nil {
@@ -301,7 +310,7 @@ func TestSessionManager_MultipleSessions(t *testing.T) {
 	sessions := make([]uuid.UUID, 5)
 	for i := range sessions {
 		sessions[i] = uuid.Must(uuid.NewV4())
-		sm.GetOrCreate(sessions[i], collector.CaptureModeSession)
+		_, _, _ = sm.GetOrCreate(sessions[i], collector.CaptureModeSession)
 	}
 
 	// All should exist

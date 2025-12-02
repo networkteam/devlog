@@ -55,8 +55,7 @@ func TestHTTPClientCollector_UnreadResponseBody(t *testing.T) {
 	// that doesn't consume the response body
 	resp.Body.Close()
 
-	// Wait for the request to be collected (async notification needs time to propagate)
-	requests := collect.Wait(1)
+	requests := collect.Stop()
 
 	// Verify the captured request details
 	req := requests[0]

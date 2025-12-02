@@ -225,6 +225,9 @@
   .mx-auto {
     margin-inline: auto;
   }
+  .mt-0 {
+    margin-top: calc(var(--spacing) * 0);
+  }
   .mt-0\.5 {
     margin-top: calc(var(--spacing) * 0.5);
   }
@@ -254,6 +257,9 @@
   }
   .mb-6 {
     margin-bottom: calc(var(--spacing) * 6);
+  }
+  .ml-0 {
+    margin-left: calc(var(--spacing) * 0);
   }
   .ml-0\.5 {
     margin-left: calc(var(--spacing) * 0.5);
@@ -315,11 +321,20 @@
   .flex-1 {
     flex: 1;
   }
+  .flex-grow {
+    flex-grow: 1;
+  }
   .grow {
     flex-grow: 1;
   }
+  .border-collapse {
+    border-collapse: collapse;
+  }
   .cursor-pointer {
     cursor: pointer;
+  }
+  .resize {
+    resize: both;
   }
   .grid-cols-\[24rem_1fr\] {
     grid-template-columns: 24rem 1fr;
@@ -350,6 +365,9 @@
   }
   .gap-1 {
     gap: calc(var(--spacing) * 1);
+  }
+  .gap-1\.5 {
+    gap: calc(var(--spacing) * 1.5);
   }
   .gap-2 {
     gap: calc(var(--spacing) * 2);
@@ -447,6 +465,9 @@
   .bg-black {
     background-color: var(--color-black);
   }
+  .bg-devlog-cyan {
+    background-color: var(--color-devlog-cyan);
+  }
   .bg-devlog-cyan\/20 {
     background-color: color-mix(in srgb, #04F3F8 20%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -480,6 +501,9 @@
   .bg-neutral-700 {
     background-color: var(--color-neutral-700);
   }
+  .bg-neutral-800 {
+    background-color: var(--color-neutral-800);
+  }
   .bg-neutral-800\/50 {
     background-color: color-mix(in srgb, oklch(26.9% 0 0) 50%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -497,6 +521,9 @@
   }
   .bg-red-800 {
     background-color: var(--color-red-800);
+  }
+  .bg-red-950 {
+    background-color: var(--color-red-950);
   }
   .bg-red-950\/50 {
     background-color: color-mix(in srgb, oklch(25.8% 0.092 26.042) 50%, transparent);
@@ -534,6 +561,9 @@
   .p-8 {
     padding: calc(var(--spacing) * 8);
   }
+  .px-2 {
+    padding-inline: calc(var(--spacing) * 2);
+  }
   .px-2\.5 {
     padding-inline: calc(var(--spacing) * 2.5);
   }
@@ -542,6 +572,9 @@
   }
   .px-4 {
     padding-inline: calc(var(--spacing) * 4);
+  }
+  .py-0 {
+    padding-block: calc(var(--spacing) * 0);
   }
   .py-0\.5 {
     padding-block: calc(var(--spacing) * 0.5);
@@ -655,6 +688,9 @@
     @supports (color: color-mix(in lab, red, red)) {
       color: color-mix(in oklab, var(--color-white) 60%, transparent);
     }
+  }
+  .underline {
+    text-decoration-line: underline;
   }
   .ring {
     --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);

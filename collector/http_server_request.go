@@ -17,8 +17,8 @@ type HTTPServerRequest struct {
 	RequestTime     time.Time
 	ResponseTime    time.Time
 	StatusCode      int
-	RequestSize     int64
-	ResponseSize    int64
+	RequestSize     uint64
+	ResponseSize    uint64
 	RequestHeaders  http.Header
 	ResponseHeaders http.Header
 	RequestBody     *Body
@@ -31,4 +31,33 @@ type HTTPServerRequest struct {
 // Duration returns the duration of the request
 func (r HTTPServerRequest) Duration() time.Duration {
 	return r.ResponseTime.Sub(r.RequestTime)
+}
+
+// Size returns the estimated memory size of this request in bytes
+func (r HTTPServerRequest) Size() uint64 {
+	size := uint64(200) // base struct overhead
+	size += uint64(len(r.URL) + len(r.Path) + len(r.Method) + len(r.RemoteAddr))
+	size += headersSize(r.RequestHeaders)
+	size += headersSize(r.ResponseHeaders)
+	if r.RequestBody != nil {
+		size += r.RequestBody.Size()
+	}
+	if r.ResponseBody != nil {
+		size += r.ResponseBody.Size()
+	}
+	for k, v := range r.Tags {
+		size += uint64(len(k) + len(v))
+	}
+	return size
+}
+
+func headersSize(h http.Header) uint64 {
+	var size uint64
+	for k, vs := range h {
+		size += uint64(len(k))
+		for _, v := range vs {
+			size += uint64(len(v))
+		}
+	}
+	return size
 }

@@ -230,3 +230,48 @@ func TestNewSessionAfterBrowserClose(t *testing.T) {
 	// Second session should start fresh
 	assert.Equal(t, 0, dashboard2.GetEventCount(), "new session should have no events")
 }
+
+// TestUsagePanel verifies that the usage panel shows memory and session stats.
+func TestUsagePanel(t *testing.T) {
+	t.Parallel()
+
+	app := NewTestApp(t)
+	defer app.Close()
+
+	pw := NewPlaywrightFixture(t)
+	defer pw.Close()
+
+	ctx := pw.NewContext(t)
+	defer ctx.Close()
+
+	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
+
+	// Wait for usage panel to load
+	dashboard.WaitForUsagePanel(5000)
+
+	// Check that usage panel is visible and has content
+	usageText := dashboard.GetUsagePanelText()
+	assert.NotEmpty(t, usageText, "usage panel should have content")
+
+	// Should show memory usage (contains "B" for bytes suffix)
+	assert.Contains(t, usageText, "B", "usage panel should show memory stats")
+
+	// Should show session count (at least 1 session - the current one)
+	assert.Regexp(t, `\d`, usageText, "usage panel should show session count")
+
+	// Start capture and make some requests
+	dashboard.StartCapture("global")
+
+	// Make requests to generate events with body content
+	dashboard.FetchAPIWithBody("/api/echo", `{"test": "data with some content"}`)
+	dashboard.WaitForEventCount(1, 5000)
+
+	// Wait for stats to refresh (polls every 5 seconds, but we wait for first poll)
+	time.Sleep(1 * time.Second)
+
+	// Check that memory increased (panel should show non-zero memory)
+	// Just verify the panel is still showing valid stats
+	updatedText := dashboard.GetUsagePanelText()
+	assert.NotEmpty(t, updatedText, "usage panel should still have content after events")
+	assert.Contains(t, updatedText, "B", "usage panel should still show memory stats")
+}

@@ -23,7 +23,8 @@ const DefaultStorageCapacity uint64 = 1000
 const DefaultSessionIdleTimeout = 30 * time.Second
 
 type Handler struct {
-	sessions *SessionManager
+	sessions        *SessionManager
+	eventAggregator *collector.EventAggregator
 
 	pathPrefix    string
 	truncateAfter uint64
@@ -62,17 +63,22 @@ func NewHandler(eventAggregator *collector.EventAggregator, opts ...HandlerOptio
 		EventAggregator: eventAggregator,
 		StorageCapacity: storageCapacity,
 		IdleTimeout:     sessionIdleTimeout,
+		MaxSessions:     options.MaxSessions,
 	})
 
 	handler := &Handler{
-		sessions:      sessions,
-		truncateAfter: truncateAfter,
-		pathPrefix:    options.PathPrefix,
-		mux:           mux,
+		sessions:        sessions,
+		eventAggregator: eventAggregator,
+		truncateAfter:   truncateAfter,
+		pathPrefix:      options.PathPrefix,
+		mux:             mux,
 	}
 
 	// Static assets (no session required)
 	mux.Handle("GET /static/", http.StripPrefix("/static", http.FileServerFS(static.Assets)))
+
+	// Global stats endpoint (no session required)
+	mux.HandleFunc("GET /stats", handler.getStats)
 
 	// Root redirect - creates new session and redirects
 	mux.HandleFunc("GET /{$}", handler.rootRedirect)
@@ -178,7 +184,12 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 	if storage == nil && captureParam == "true" {
 		mode := collector.ParseCaptureModeOrDefault(modeParam)
 		var created bool
-		storage, created = h.sessions.GetOrCreate(sessionID, mode)
+		var err error
+		storage, created, err = h.sessions.GetOrCreate(sessionID, mode)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		if created && mode == collector.CaptureModeSession {
 			h.setSessionCookie(w, sessionID)
 		}
@@ -333,7 +344,12 @@ func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 		mode := collector.ParseCaptureModeOrDefault(r.URL.Query().Get("mode"))
 
 		var created bool
-		storage, created = h.sessions.GetOrCreate(sessionID, mode)
+		var err error
+		storage, created, err = h.sessions.GetOrCreate(sessionID, mode)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 
 		// Set cookie if session mode and newly created
 		if created && mode == collector.CaptureModeSession {
@@ -539,7 +555,11 @@ func (h *Handler) captureStart(w http.ResponseWriter, r *http.Request) {
 	mode := collector.ParseCaptureModeOrDefault(r.FormValue("mode"))
 
 	// Get or create session
-	storage, created := h.sessions.GetOrCreate(sessionID, mode)
+	storage, created, err := h.sessions.GetOrCreate(sessionID, mode)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
 
 	if !created {
 		// Session exists, resume capturing with potentially new mode
@@ -687,4 +707,37 @@ func (h *Handler) captureCleanup(w http.ResponseWriter, r *http.Request) {
 	h.clearSessionCookie(w, sessionID)
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// StatsResponse is the response for GET /stats
+type StatsResponse struct {
+	MemoryBytes     uint64 `json:"memoryBytes"`
+	MemoryFormatted string `json:"memoryFormatted"`
+	SessionCount    int    `json:"sessionCount"`
+	MaxSessions     int    `json:"maxSessions,omitempty"`
+	EventCount      int    `json:"eventCount"`
+}
+
+func (h *Handler) getStats(w http.ResponseWriter, r *http.Request) {
+	stats := h.eventAggregator.CalculateStats()
+
+	response := StatsResponse{
+		MemoryBytes:     stats.TotalMemory,
+		MemoryFormatted: views.FormatBytes(stats.TotalMemory),
+		SessionCount:    h.sessions.SessionCount(),
+		MaxSessions:     h.sessions.MaxSessions(),
+		EventCount:      stats.EventCount,
+	}
+
+	// Check if HTMX request
+	if r.Header.Get("HX-Request") == "true" {
+		templ.Handler(
+			views.UsagePanelContent(response.MemoryFormatted, response.SessionCount, response.MaxSessions),
+		).ServeHTTP(w, r)
+		return
+	}
+
+	// JSON response for API
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

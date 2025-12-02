@@ -52,7 +52,11 @@ func Header(capture CaptureState) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"flex flex-1 justify-end\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"flex flex-1 items-center justify-end gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = UsagePanel().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -85,7 +89,7 @@ func Header(capture CaptureState) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/event-list", opts.PathPrefix, opts.SessionID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 27, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 28, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -140,7 +144,7 @@ func CaptureControls(capture CaptureState) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(mode)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 44, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 45, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -382,7 +386,7 @@ func CaptureMode(mode string, capturing bool) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/capture/mode?mode=session", opts.PathPrefix, opts.SessionID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 123, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 124, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -417,7 +421,7 @@ func CaptureMode(mode string, capturing bool) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/capture/mode?mode=global", opts.PathPrefix, opts.SessionID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 132, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 133, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {

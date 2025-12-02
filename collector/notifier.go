@@ -14,6 +14,7 @@ type Notifier[T any] struct {
 	notifyCh    chan T
 	closeOnce   sync.Once
 	closed      bool
+	pending     sync.WaitGroup // tracks items in notification pipeline
 }
 
 // NotifierOptions configures a notifier
@@ -83,6 +84,9 @@ func (n *Notifier[T]) Subscribe(ctx context.Context) <-chan T {
 
 // Unsubscribe removes a subscription
 func (n *Notifier[T]) Unsubscribe(ch <-chan T) {
+	// Wait for any pending notifications to be distributed
+	n.pending.Wait()
+
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -103,18 +107,23 @@ func (n *Notifier[T]) Notify(item T) {
 	}
 	n.mu.RUnlock()
 
+	n.pending.Add(1)
 	// Non-blocking send to notification channel
 	select {
 	case n.notifyCh <- item:
 		// Successfully sent
 	default:
 		// Channel full, drop notification
+		n.pending.Done()
 	}
 }
 
 // Close closes the notifier and all subscriber channels
 func (n *Notifier[T]) Close() {
 	n.closeOnce.Do(func() {
+		// Wait for any pending notifications to be distributed
+		n.pending.Wait()
+
 		n.mu.Lock()
 		n.closed = true
 
@@ -147,5 +156,6 @@ func (n *Notifier[T]) processNotifications() {
 		}
 
 		n.mu.RUnlock()
+		n.pending.Done()
 	}
 }

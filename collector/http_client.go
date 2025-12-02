@@ -132,7 +132,7 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 	// Track the original request body size
 	if req.ContentLength > 0 {
-		httpReq.RequestSize = req.ContentLength
+		httpReq.RequestSize = uint64(req.ContentLength)
 	}
 
 	// Capture request body if present and configured to do so
@@ -171,7 +171,7 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 		// Calculate content length from header if available
 		if contentLength := resp.Header.Get("Content-Length"); contentLength != "" {
-			if length, err := strconv.ParseInt(contentLength, 10, 64); err == nil {
+			if length, err := strconv.ParseUint(contentLength, 10, 64); err == nil {
 				httpReq.ResponseSize = length
 			}
 		}

@@ -7,6 +7,11 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+// Sizer is implemented by event data types to report their memory size
+type Sizer interface {
+	Size() uint64
+}
+
 type Event struct {
 	ID uuid.UUID
 
@@ -19,6 +24,19 @@ type Event struct {
 
 	// Children is a slice of events that are children of this event
 	Children []*Event
+
+	// Size is the calculated memory size of this event (excluding children)
+	Size uint64
+}
+
+// calculateSize computes the memory size of this event (excluding children)
+func (e *Event) calculateSize() uint64 {
+	const baseEventSize = 100 // UUID, pointers, time.Time fields, slice header
+	size := uint64(baseEventSize)
+	if sizer, ok := e.Data.(Sizer); ok {
+		size += sizer.Size()
+	}
+	return size
 }
 
 func (e *Event) Visit() iter.Seq2[uuid.UUID, *Event] {

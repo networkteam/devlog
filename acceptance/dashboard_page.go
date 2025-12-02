@@ -354,3 +354,28 @@ func (dp *DashboardPage) FetchAPIWithBody(path string, body string) {
 	_, err := dp.Page.Evaluate(js)
 	require.NoError(dp.t, err)
 }
+
+// GetUsagePanelText returns the text content of the usage panel.
+func (dp *DashboardPage) GetUsagePanelText() string {
+	dp.t.Helper()
+
+	usagePanel := dp.Page.Locator("#usage-panel")
+	text, err := usagePanel.TextContent()
+	require.NoError(dp.t, err)
+	return text
+}
+
+// WaitForUsagePanel waits for the usage panel content to load (not show "Loading...").
+func (dp *DashboardPage) WaitForUsagePanel(timeout float64) {
+	dp.t.Helper()
+
+	// Wait for the usage panel to contain actual content (not "Loading...")
+	_, err := dp.Page.WaitForFunction(`() => {
+		const el = document.getElementById('usage-panel');
+		return el && !el.textContent.includes('Loading');
+	}`, playwright.PageWaitForFunctionOptions{
+		Timeout: playwright.Float(timeout),
+		Polling: playwright.Float(100),
+	})
+	require.NoError(dp.t, err, "usage panel did not load content")
+}

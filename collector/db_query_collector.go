@@ -22,6 +22,16 @@ type DBQuery struct {
 	Error error
 }
 
+// Size returns the estimated memory size of this query in bytes
+func (q DBQuery) Size() uint64 {
+	size := uint64(100) // base struct overhead
+	size += uint64(len(q.Query))
+	size += uint64(len(q.Language))
+	// Estimate 50 bytes per arg (name + value)
+	size += uint64(len(q.Args) * 50)
+	return size
+}
+
 type DBQueryCollector struct {
 	notifier        *Notifier[DBQuery]
 	eventAggregator *EventAggregator

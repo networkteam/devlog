@@ -14,6 +14,7 @@ type TestCollector[T any] struct {
 	items  []T
 	cancel func()
 	mu     sync.Mutex
+	done   chan struct{} // signals when collector goroutine finishes
 }
 
 // Collect starts collecting from a subscription.
@@ -26,10 +27,12 @@ func Collect[T any](t testing.TB, subscribe func(context.Context) <-chan T) *Tes
 	c := &TestCollector[T]{
 		t:      t,
 		cancel: cancel,
+		done:   make(chan struct{}),
 	}
 
 	// Collect items in background
 	go func() {
+		defer close(c.done)
 		for item := range ch {
 			c.mu.Lock()
 			c.items = append(c.items, item)
@@ -41,8 +44,10 @@ func Collect[T any](t testing.TB, subscribe func(context.Context) <-chan T) *Tes
 }
 
 // Stop cancels collection and returns items collected so far.
+// It waits for the collector goroutine to finish to ensure all items are received.
 func (c *TestCollector[T]) Stop() []T {
 	c.cancel()
+	<-c.done // Wait for collector goroutine to finish
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	items := make([]T, len(c.items))
