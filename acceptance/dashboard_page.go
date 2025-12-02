@@ -18,6 +18,25 @@ type DashboardPage struct {
 	t          *testing.T
 }
 
+// waitForSSEConnection waits for the SSE connection on #event-list to be open.
+// It polls the htmx internal data to check the EventSource readyState.
+func (dp *DashboardPage) waitForSSEConnection(timeout float64) {
+	dp.t.Helper()
+
+	_, err := dp.Page.WaitForFunction(`() => {
+		const el = document.getElementById('event-list');
+		const internalData = el && el['htmx-internal-data'];
+		if (internalData && internalData.sseEventSource) {
+			return internalData.sseEventSource.readyState === 1; // OPEN
+		}
+		return false;
+	}`, playwright.PageWaitForFunctionOptions{
+		Timeout: playwright.Float(timeout),
+		Polling: playwright.Float(100),
+	})
+	require.NoError(dp.t, err, "failed to establish SSE connection")
+}
+
 // NewDashboardPage navigates to the devlog dashboard and waits for redirect to session URL.
 func NewDashboardPage(t *testing.T, ctx playwright.BrowserContext, devlogURL string) *DashboardPage {
 	t.Helper()
@@ -60,20 +79,9 @@ func (dp *DashboardPage) StartCapture(mode string) {
 		require.NoError(dp.t, err, "failed to switch to global mode")
 	}
 
-	// Set up a promise that resolves when htmx:sseOpen fires (SSE connection established)
-	// We set this up BEFORE clicking record so we don't miss the event
-	_, err := dp.Page.Evaluate(`() => {
-		window._sseOpenPromise = new Promise((resolve) => {
-			document.body.addEventListener('htmx:sseOpen', () => {
-				resolve(true);
-			}, { once: true });
-		});
-	}`)
-	require.NoError(dp.t, err, "failed to set up SSE open listener")
-
 	// Click record button
 	recordBtn := dp.Page.Locator("button[title='Start capture']")
-	err = recordBtn.Click()
+	err := recordBtn.Click()
 	require.NoError(dp.t, err, "failed to click record button")
 
 	// Wait for the placeholder text to disappear (indicates capture UI has loaded)
@@ -83,11 +91,7 @@ func (dp *DashboardPage) StartCapture(mode string) {
 	})
 	require.NoError(dp.t, err, "capture UI did not load")
 
-	// Wait for SSE connection to actually be open (not just attribute present)
-	_, err = dp.Page.WaitForFunction(`() => window._sseOpenPromise`, playwright.PageWaitForFunctionOptions{
-		Timeout: playwright.Float(5000),
-	})
-	require.NoError(dp.t, err, "failed to establish SSE connection")
+	dp.waitForSSEConnection(5000)
 }
 
 // StopCapture stops capturing events.
@@ -210,17 +214,6 @@ func (dp *DashboardPage) ClearEvents() {
 func (dp *DashboardPage) SwitchMode(mode string) {
 	dp.t.Helper()
 
-	// Set up a promise that resolves when htmx:sseOpen fires (SSE connection established)
-	// We set this up BEFORE clicking so we don't miss the event
-	_, err := dp.Page.Evaluate(`() => {
-		window._sseOpenPromise = new Promise((resolve) => {
-			document.body.addEventListener('htmx:sseOpen', () => {
-				resolve(true);
-			}, { once: true });
-		});
-	}`)
-	require.NoError(dp.t, err, "failed to set up SSE open listener")
-
 	var btn playwright.Locator
 	if mode == "session" {
 		btn = dp.Page.Locator("button:has-text('Session')")
@@ -228,7 +221,7 @@ func (dp *DashboardPage) SwitchMode(mode string) {
 		btn = dp.Page.Locator("button:has-text('Global')")
 	}
 
-	err = btn.Click()
+	err := btn.Click()
 	require.NoError(dp.t, err, "failed to switch to %s mode", mode)
 
 	// Wait for mode to be updated in the capture controls data attribute
@@ -239,11 +232,7 @@ func (dp *DashboardPage) SwitchMode(mode string) {
 	})
 	require.NoError(dp.t, err, "failed to confirm mode switch to %s", mode)
 
-	// Wait for SSE connection to actually be open (not just attribute present)
-	_, err = dp.Page.WaitForFunction(`() => window._sseOpenPromise`, playwright.PageWaitForFunctionOptions{
-		Timeout: playwright.Float(5000),
-	})
-	require.NoError(dp.t, err, "failed to establish SSE connection for mode %s", mode)
+	dp.waitForSSEConnection(5000)
 }
 
 // ClickFirstEvent clicks on the first parent event in the event list to show its details.
@@ -298,7 +287,6 @@ func (dp *DashboardPage) Reload() {
 	require.NoError(dp.t, err, "failed to wait for page load")
 
 	// If capture was active, wait for SSE to be connected
-	// We check for the sse-connect attribute with a valid URL, then verify the connection is open
 	if wasCapturing {
 		// Wait for event list with SSE to be present
 		err = dp.Page.Locator("ul#event-list[sse-connect]").WaitFor(playwright.LocatorWaitForOptions{
@@ -307,21 +295,7 @@ func (dp *DashboardPage) Reload() {
 		})
 		require.NoError(dp.t, err, "failed to find SSE element after reload")
 
-		// Use polling to wait for SSE to actually connect
-		// htmx SSE extension creates EventSource which opens asynchronously
-		_, err = dp.Page.WaitForFunction(`() => {
-			const el = document.getElementById('event-list');
-			// Check if htmx has processed the SSE extension by looking for internal data
-			const internalData = el && el['htmx-internal-data'];
-			if (internalData && internalData.sseEventSource) {
-				return internalData.sseEventSource.readyState === 1; // OPEN
-			}
-			return false;
-		}`, playwright.PageWaitForFunctionOptions{
-			Timeout:  playwright.Float(5000),
-			Polling:  playwright.Float(100),
-		})
-		require.NoError(dp.t, err, "failed to reconnect SSE after reload")
+		dp.waitForSSEConnection(5000)
 	}
 }
 
