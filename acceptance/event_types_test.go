@@ -5,7 +5,6 @@ package acceptance
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -222,8 +221,6 @@ func TestNestedEventsShowChildren(t *testing.T) {
 
 	// The event list item should indicate it has children
 	// Look for the event item and check if there's visual indication of nested events
-	time.Sleep(500 * time.Millisecond)
-
 	text := dashboard.GetFirstEventText()
 	// The parent HTTP event should be shown
 	assert.Contains(t, text, "/api/combined")

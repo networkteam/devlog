@@ -6,6 +6,7 @@ package acceptance
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/playwright-community/playwright-go"
 	"github.com/stretchr/testify/require"
@@ -142,6 +143,56 @@ func (dp *DashboardPage) WaitForEventCount(expectedCount int, timeout float64) {
 	require.NoError(dp.t, err, "failed to wait for %d events", expectedCount)
 }
 
+// ExpectDuring repeatedly checks that the assertion function returns true
+// for the entire duration. Polls every interval. Fails immediately if
+// the assertion returns false at any point.
+// This is useful for negative assertions where we want to verify something
+// does NOT happen over a period of time.
+func (dp *DashboardPage) ExpectDuring(assertion func() bool, interval time.Duration, duration time.Duration, msgAndArgs ...interface{}) {
+	dp.t.Helper()
+
+	deadline := time.Now().Add(duration)
+	for time.Now().Before(deadline) {
+		if !assertion() {
+			if len(msgAndArgs) > 0 {
+				dp.t.Fatalf("assertion failed during wait: %v", msgAndArgs...)
+			} else {
+				dp.t.Fatal("assertion failed during wait")
+			}
+		}
+		time.Sleep(interval)
+	}
+
+	// Final check
+	if !assertion() {
+		if len(msgAndArgs) > 0 {
+			dp.t.Fatalf("assertion failed at end of wait: %v", msgAndArgs...)
+		} else {
+			dp.t.Fatal("assertion failed at end of wait")
+		}
+	}
+}
+
+// ExpectNoEvents verifies that no events appear during the given duration.
+// Polls every 100ms and fails immediately if any event appears.
+func (dp *DashboardPage) ExpectNoEvents(duration time.Duration) {
+	dp.t.Helper()
+
+	dp.ExpectDuring(func() bool {
+		return dp.GetEventCount() == 0
+	}, 100*time.Millisecond, duration, "expected no events but some appeared")
+}
+
+// ExpectEventCountStable verifies that the event count stays at the expected value
+// for the given duration. Fails immediately if the count changes.
+func (dp *DashboardPage) ExpectEventCountStable(expectedCount int, duration time.Duration) {
+	dp.t.Helper()
+
+	dp.ExpectDuring(func() bool {
+		return dp.GetEventCount() == expectedCount
+	}, 100*time.Millisecond, duration, "expected %d events to remain stable", expectedCount)
+}
+
 // ClearEvents clears all events from the event list.
 func (dp *DashboardPage) ClearEvents() {
 	dp.t.Helper()
@@ -225,9 +276,13 @@ func (dp *DashboardPage) ClickFirstChildEvent() {
 	dp.WaitForEventDetails(5000)
 }
 
-// Reload reloads the current page.
+// Reload reloads the current page and waits for SSE to reconnect if capture was active.
 func (dp *DashboardPage) Reload() {
 	dp.t.Helper()
+
+	// Check if capture is currently active (before reload)
+	stopBtn := dp.Page.Locator("button[title='Stop capture']:not([disabled])")
+	wasCapturing, _ := stopBtn.IsVisible()
 
 	_, err := dp.Page.Reload()
 	require.NoError(dp.t, err, "failed to reload page")
@@ -244,6 +299,33 @@ func (dp *DashboardPage) Reload() {
 		Timeout: playwright.Float(5000),
 	})
 	require.NoError(dp.t, err, "failed to wait for page load")
+
+	// If capture was active, wait for SSE to be connected
+	// We check for the sse-connect attribute with a valid URL, then verify the connection is open
+	if wasCapturing {
+		// Wait for event list with SSE to be present
+		err = dp.Page.Locator("ul#event-list[sse-connect]").WaitFor(playwright.LocatorWaitForOptions{
+			State:   playwright.WaitForSelectorStateAttached,
+			Timeout: playwright.Float(5000),
+		})
+		require.NoError(dp.t, err, "failed to find SSE element after reload")
+
+		// Use polling to wait for SSE to actually connect
+		// htmx SSE extension creates EventSource which opens asynchronously
+		_, err = dp.Page.WaitForFunction(`() => {
+			const el = document.getElementById('event-list');
+			// Check if htmx has processed the SSE extension by looking for internal data
+			const internalData = el && el['htmx-internal-data'];
+			if (internalData && internalData.sseEventSource) {
+				return internalData.sseEventSource.readyState === 1; // OPEN
+			}
+			return false;
+		}`, playwright.PageWaitForFunctionOptions{
+			Timeout:  playwright.Float(5000),
+			Polling:  playwright.Float(100),
+		})
+		require.NoError(dp.t, err, "failed to reconnect SSE after reload")
+	}
 }
 
 // GetEventDetailsText returns the text content of the event details panel.

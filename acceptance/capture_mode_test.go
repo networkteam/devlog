@@ -184,8 +184,8 @@ func TestSessionMode_DifferentContext(t *testing.T) {
 	require.NoError(t, err)
 
 	// In session mode, this should NOT be captured (no cookie)
-	time.Sleep(2 * time.Second)
-	assert.Equal(t, 0, dashboard.GetEventCount(), "session mode should not capture requests from different context")
+	// Poll for 2 seconds to verify no events appear
+	dashboard.ExpectNoEvents(2 * time.Second)
 }
 
 // TestSessionMode_ReloadPersistence verifies that events persist and new events are captured after reload in session mode.
@@ -285,8 +285,8 @@ func TestModeSwitching(t *testing.T) {
 	_, err = page2.Goto(app.AppURL + "/api/test?source=external1")
 	require.NoError(t, err)
 
-	time.Sleep(1 * time.Second)
-	assert.Equal(t, 0, dashboard.GetEventCount(), "session mode should not capture external requests")
+	// Poll for 1 second to verify no events appear
+	dashboard.ExpectNoEvents(1 * time.Second)
 
 	// Switch to global mode
 	dashboard.SwitchMode("global")
@@ -337,8 +337,8 @@ func TestModeSwitchingBackToSession(t *testing.T) {
 	_, err = page2.Goto(app.AppURL + "/api/test?source=external2")
 	require.NoError(t, err)
 
-	time.Sleep(1 * time.Second)
-	assert.Equal(t, 0, dashboard.GetEventCount(), "session mode should not capture external requests")
+	// Poll for 1 second to verify no events appear
+	dashboard.ExpectNoEvents(1 * time.Second)
 
 	// Same context request should still work
 	dashboard.FetchAPI("/api/test?source=same")

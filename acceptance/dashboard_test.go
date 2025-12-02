@@ -132,10 +132,9 @@ func TestStopCapture(t *testing.T) {
 
 	// Make another request after stopping (from browser)
 	dashboard.FetchAPI("/api/test?after=stop")
-	time.Sleep(2 * time.Second)
 
-	// Should still only have 1 event
-	assert.Equal(t, 1, dashboard.GetEventCount(), "stopped capture should not record new events")
+	// Poll for 2 seconds to verify event count stays at 1 (no new events)
+	dashboard.ExpectEventCountStable(1, 2*time.Second)
 }
 
 // TestMultipleConcurrentRequests verifies that multiple concurrent requests are all captured.
@@ -221,9 +220,6 @@ func TestNewSessionAfterBrowserClose(t *testing.T) {
 	dashboard1.FetchAPI("/api/test")
 	dashboard1.WaitForEventCount(1, 5000)
 	ctx1.Close()
-
-	// Wait for session cleanup
-	time.Sleep(1 * time.Second)
 
 	// Second session - should get new session URL
 	ctx2 := pw.NewContext(t)
