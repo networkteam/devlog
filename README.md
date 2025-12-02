@@ -274,13 +274,13 @@ Playwright browsers will be automatically installed on first run.
 **Run all acceptance tests:**
 
 ```bash
-go test -v -tags=acceptance -timeout 5m ./acceptance/...
+go test -v -timeout 5m ./acceptance/...
 ```
 
 **Debug mode (visible browser):**
 
 ```bash
-HEADLESS=false go test -v -tags=acceptance -parallel=1 ./acceptance/...
+HEADLESS=false go test -v -parallel=1 ./acceptance/...
 ```
 
 The acceptance tests cover:
