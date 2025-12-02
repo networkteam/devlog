@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql/driver"
 	"time"
+
+	"github.com/networkteam/devlog/internal/utils"
 )
 
 // DBQuery represents a database query execution record
@@ -27,8 +29,15 @@ func (q DBQuery) Size() uint64 {
 	size := uint64(100) // base struct overhead
 	size += uint64(len(q.Query))
 	size += uint64(len(q.Language))
-	// Estimate 50 bytes per arg (name + value)
-	size += uint64(len(q.Args) * 50)
+	// Calculate actual size of arguments using reflection
+	for _, arg := range q.Args {
+		size += uint64(len(arg.Name))
+		size += 8 // Ordinal int field
+		argSize := utils.SizeOf(arg.Value)
+		if argSize > 0 {
+			size += uint64(argSize)
+		}
+	}
 	return size
 }
 
