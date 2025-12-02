@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/a-h/templ"
@@ -24,25 +22,11 @@ const DefaultStorageCapacity uint64 = 1000
 // DefaultSessionIdleTimeout is the default time before an inactive session is cleaned up
 const DefaultSessionIdleTimeout = 30 * time.Second
 
-// sessionState tracks a user's capture session
-type sessionState struct {
-	storageID  uuid.UUID
-	lastActive time.Time
-}
-
 type Handler struct {
-	eventAggregator *collector.EventAggregator
+	sessions *SessionManager
 
-	// Session management
-	sessions   map[uuid.UUID]*sessionState // sessionID -> sessionState
-	sessionsMu sync.RWMutex
-
-	pathPrefix       string
-	truncateAfter    uint64
-	storageCapacity  uint64
-	idleTimeout      time.Duration
-	cleanupCtx       context.Context
-	cleanupCtxCancel context.CancelFunc
+	pathPrefix    string
+	truncateAfter uint64
 
 	mux http.Handler
 }
@@ -74,29 +58,18 @@ func NewHandler(options HandlerOptions) *Handler {
 		truncateAfter = storageCapacity
 	}
 
-	idleTimeout := options.SessionIdleTimeout
-	if idleTimeout == 0 {
-		idleTimeout = DefaultSessionIdleTimeout
-	}
-
-	cleanupCtx, cleanupCtxCancel := context.WithCancel(context.Background())
+	sessions := NewSessionManager(SessionManagerOptions{
+		EventAggregator: options.EventAggregator,
+		StorageCapacity: storageCapacity,
+		IdleTimeout:     options.SessionIdleTimeout,
+	})
 
 	handler := &Handler{
-		eventAggregator:  options.EventAggregator,
-		sessions:         make(map[uuid.UUID]*sessionState),
-		truncateAfter:    truncateAfter,
-		storageCapacity:  storageCapacity,
-		idleTimeout:      idleTimeout,
-		cleanupCtx:       cleanupCtx,
-		cleanupCtxCancel: cleanupCtxCancel,
-
-		pathPrefix: options.PathPrefix,
-
-		mux: mux,
+		sessions:      sessions,
+		truncateAfter: truncateAfter,
+		pathPrefix:    options.PathPrefix,
+		mux:           mux,
 	}
-
-	// Start cleanup goroutine
-	go handler.sessionCleanupLoop()
 
 	// Static assets (no session required)
 	mux.Handle("GET /static/", http.StripPrefix("/static", http.FileServerFS(static.Assets)))
@@ -116,7 +89,7 @@ func NewHandler(options HandlerOptions) *Handler {
 	// Capture control endpoints
 	mux.HandleFunc("POST /s/{sid}/capture/start", handler.captureStart)
 	mux.HandleFunc("POST /s/{sid}/capture/stop", handler.captureStop)
-	mux.HandleFunc("POST /s/{sid}/capture/mode", handler.captureMode)
+	mux.HandleFunc("POST /s/{sid}/capture/mode", handler.setCaptureMode)
 	mux.HandleFunc("GET /s/{sid}/capture/status", handler.captureStatus)
 	mux.HandleFunc("POST /s/{sid}/capture/cleanup", handler.captureCleanup)
 
@@ -141,52 +114,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Close shuts down the handler and releases resources
 func (h *Handler) Close() {
-	h.cleanupCtxCancel()
-
-	// Unregister all storages
-	h.sessionsMu.Lock()
-	for sessionID, state := range h.sessions {
-		if storage := h.eventAggregator.GetStorage(state.storageID); storage != nil {
-			storage.Close()
-		}
-		h.eventAggregator.UnregisterStorage(state.storageID)
-		delete(h.sessions, sessionID)
-	}
-	h.sessionsMu.Unlock()
-}
-
-// sessionCleanupLoop periodically checks for idle sessions and cleans them up
-func (h *Handler) sessionCleanupLoop() {
-	ticker := time.NewTicker(h.idleTimeout / 2)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-h.cleanupCtx.Done():
-			return
-		case <-ticker.C:
-			h.cleanupIdleSessions()
-		}
-	}
-}
-
-func (h *Handler) cleanupIdleSessions() {
-	now := time.Now()
-
-	h.sessionsMu.Lock()
-	defer h.sessionsMu.Unlock()
-
-	for sessionID, state := range h.sessions {
-		if now.Sub(state.lastActive) > h.idleTimeout {
-			fmt.Fprintf(os.Stderr, "[DEBUG] %s: cleanupIdleSessions: cleaning up session %s, idle for %v\n", time.Now().Format(time.DateTime), sessionID, now.Sub(state.lastActive))
-			// Clean up this session
-			if storage := h.eventAggregator.GetStorage(state.storageID); storage != nil {
-				storage.Close()
-			}
-			h.eventAggregator.UnregisterStorage(state.storageID)
-			delete(h.sessions, sessionID)
-		}
-	}
+	h.sessions.Close()
 }
 
 // getSessionID extracts the session ID from the URL path parameter
@@ -224,48 +152,6 @@ func (h *Handler) clearSessionCookie(w http.ResponseWriter, sessionID uuid.UUID)
 	})
 }
 
-// getSessionStorage returns the storage for a session, or nil if not found
-func (h *Handler) getSessionStorage(sessionID uuid.UUID) *collector.CaptureStorage {
-	h.sessionsMu.RLock()
-	state, exists := h.sessions[sessionID]
-	h.sessionsMu.RUnlock()
-
-	if !exists {
-		return nil
-	}
-
-	storage := h.eventAggregator.GetStorage(state.storageID)
-	if storage == nil {
-		return nil
-	}
-
-	return storage.(*collector.CaptureStorage)
-}
-
-// updateSessionActivity updates the last active time for a session
-func (h *Handler) updateSessionActivity(sessionID uuid.UUID) {
-	h.sessionsMu.Lock()
-	if state, exists := h.sessions[sessionID]; exists {
-		state.lastActive = time.Now()
-	}
-	h.sessionsMu.Unlock()
-}
-
-// createSession creates a new capture session and returns the storage
-func (h *Handler) createSession(sessionID uuid.UUID, mode collector.CaptureMode) *collector.CaptureStorage {
-	storage := collector.NewCaptureStorage(sessionID, h.storageCapacity, mode)
-	h.eventAggregator.RegisterStorage(storage)
-
-	h.sessionsMu.Lock()
-	h.sessions[sessionID] = &sessionState{
-		storageID:  storage.ID(),
-		lastActive: time.Now(),
-	}
-	h.sessionsMu.Unlock()
-
-	return storage
-}
-
 // rootRedirect redirects to a new session
 func (h *Handler) rootRedirect(w http.ResponseWriter, r *http.Request) {
 	sessionID := uuid.Must(uuid.NewV4())
@@ -279,7 +165,7 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 
 	// Check URL params for capture state - allows recreating session from URL
 	captureParam := r.URL.Query().Get("capture")
@@ -290,12 +176,10 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 
 	// Recreate session from URL params if needed
 	if storage == nil && captureParam == "true" {
-		mode := collector.CaptureModeSession
-		if modeParam == "global" {
-			mode = collector.CaptureModeGlobal
-		}
-		storage = h.createSession(sessionID, mode)
-		if mode == collector.CaptureModeSession {
+		mode := collector.ParseCaptureModeOrDefault(modeParam)
+		var created bool
+		storage, created = h.sessions.GetOrCreate(sessionID, mode)
+		if created && mode == collector.CaptureModeSession {
 			h.setSessionCookie(w, sessionID)
 		}
 	}
@@ -320,13 +204,11 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 	captureActive := false
 	captureMode := modeParam
 	if storage != nil {
-		h.updateSessionActivity(sessionID)
+		h.sessions.UpdateActivity(sessionID)
 		recentEvents = h.loadRecentEvents(storage)
 		captureActive = true
-		if storage.CaptureMode() == collector.CaptureModeGlobal {
-			captureMode = "global"
-		} else {
-			captureMode = "session"
+		captureMode = storage.CaptureMode().String()
+		if storage.CaptureMode() == collector.CaptureModeSession {
 			// Re-set session cookie for session mode (cleared on beforeunload)
 			h.setSessionCookie(w, sessionID)
 		}
@@ -345,7 +227,7 @@ func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := h.getSessionID(r)
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 
 	var recentEvents []*collector.Event
 	captureActive := false
@@ -353,9 +235,7 @@ func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
 	if storage != nil {
 		recentEvents = h.loadRecentEvents(storage)
 		captureActive = true
-		if storage.CaptureMode() == collector.CaptureModeGlobal {
-			captureMode = "global"
-		}
+		captureMode = storage.CaptureMode().String()
 	}
 
 	r = h.withHandlerOptions(r, sessionID.String(), captureActive, captureMode)
@@ -381,7 +261,7 @@ func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) clearEventList(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := h.getSessionID(r)
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 	if storage != nil {
 		storage.Clear()
 	}
@@ -389,8 +269,8 @@ func (h *Handler) clearEventList(w http.ResponseWriter, r *http.Request) {
 	// Keep capture active if storage exists
 	captureActive := storage != nil
 	captureMode := "session"
-	if storage != nil && storage.CaptureMode() == collector.CaptureModeGlobal {
-		captureMode = "global"
+	if storage != nil {
+		captureMode = storage.CaptureMode().String()
 	}
 
 	r = h.withHandlerOptions(r, sessionID.String(), captureActive, captureMode)
@@ -411,18 +291,14 @@ func (h *Handler) clearEventList(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getEventDetails(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := h.getSessionID(r)
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 	if storage == nil {
 		http.Error(w, "No capture session active", http.StatusNotFound)
 		return
 	}
 
-	captureActive := true
-	captureMode := "session"
-	if storage.CaptureMode() == collector.CaptureModeGlobal {
-		captureMode = "global"
-	}
-	r = h.withHandlerOptions(r, sessionID.String(), captureActive, captureMode)
+	captureMode := storage.CaptureMode().String()
+	r = h.withHandlerOptions(r, sessionID.String(), true, captureMode)
 
 	idStr := r.PathValue("eventId")
 	eventID, err := uuid.FromString(idStr)
@@ -450,32 +326,27 @@ func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 	if storage == nil {
 		// Session was cleaned up - recreate it (fresh and empty)
 		// Use mode from query param, default to session mode
-		mode := collector.CaptureModeSession
-		if r.URL.Query().Get("mode") == "global" {
-			mode = collector.CaptureModeGlobal
-		}
+		mode := collector.ParseCaptureModeOrDefault(r.URL.Query().Get("mode"))
 
-		storage = h.createSession(sessionID, mode)
+		var created bool
+		storage, created = h.sessions.GetOrCreate(sessionID, mode)
 
-		// Set cookie if session mode
-		if mode == collector.CaptureModeSession {
+		// Set cookie if session mode and newly created
+		if created && mode == collector.CaptureModeSession {
 			h.setSessionCookie(w, sessionID)
 		}
 	}
 
 	// Set handler options in context for template rendering
-	captureMode := "session"
-	if storage.CaptureMode() == collector.CaptureModeGlobal {
-		captureMode = "global"
-	}
+	captureMode := storage.CaptureMode().String()
 	r = h.withHandlerOptions(r, sessionID.String(), true, captureMode)
 
 	// Update activity for this session
-	h.updateSessionActivity(sessionID)
+	h.sessions.UpdateActivity(sessionID)
 
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -496,7 +367,7 @@ func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Create a ticker to keep the session alive and send keepalive messages
 	// This prevents idle timeout while SSE connection is open
-	keepaliveTicker := time.NewTicker(h.idleTimeout / 2)
+	keepaliveTicker := time.NewTicker(h.sessions.IdleTimeout() / 2)
 	defer keepaliveTicker.Stop()
 
 	// Listen for new events and send them as SSE events
@@ -506,7 +377,7 @@ func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 			return // Client disconnected
 		case <-keepaliveTicker.C:
 			// Keep session alive while SSE is connected
-			h.updateSessionActivity(sessionID)
+			h.sessions.UpdateActivity(sessionID)
 			// Send keepalive to client
 			fmt.Fprintf(w, "event: keepalive\ndata: ping\n\n")
 			w.(http.Flusher).Flush()
@@ -516,7 +387,7 @@ func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Update activity on each event
-			h.updateSessionActivity(sessionID)
+			h.sessions.UpdateActivity(sessionID)
 
 			// Send as SSE event
 			fmt.Fprintf(w, "event: new-event\n")
@@ -541,7 +412,7 @@ func (h *Handler) loadRecentEvents(storage *collector.CaptureStorage) []*collect
 // downloadRequestBody handles downloading the request body for an event
 func (h *Handler) downloadRequestBody(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := h.getSessionID(r)
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 	if storage == nil {
 		http.Error(w, "No capture session active", http.StatusNotFound)
 		return
@@ -596,7 +467,7 @@ func (h *Handler) downloadRequestBody(w http.ResponseWriter, r *http.Request) {
 // downloadResponseBody handles downloading the response body for an event
 func (h *Handler) downloadResponseBody(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := h.getSessionID(r)
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 	if storage == nil {
 		http.Error(w, "No capture session active", http.StatusNotFound)
 		return
@@ -665,49 +536,28 @@ func (h *Handler) captureStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse mode from request body (default to session mode)
-	mode := collector.CaptureModeSession
-	if r.FormValue("mode") == "global" {
-		mode = collector.CaptureModeGlobal
-	}
+	mode := collector.ParseCaptureModeOrDefault(r.FormValue("mode"))
 
-	// Check if session already exists (may be paused or active)
-	h.sessionsMu.Lock()
-	if state, exists := h.sessions[sessionID]; exists {
-		h.sessionsMu.Unlock()
+	// Get or create session
+	storage, created := h.sessions.GetOrCreate(sessionID, mode)
+
+	if !created {
 		// Session exists, resume capturing with potentially new mode
-		if storage := h.eventAggregator.GetStorage(state.storageID); storage != nil {
-			captureStorage := storage.(*collector.CaptureStorage)
-			oldMode := captureStorage.CaptureMode()
-			captureStorage.SetCapturing(true)
-			captureStorage.SetCaptureMode(mode)
+		oldMode := storage.CaptureMode()
+		storage.SetCapturing(true)
+		storage.SetCaptureMode(mode)
 
-			// Handle cookie based on mode change
-			if mode == collector.CaptureModeSession && oldMode != collector.CaptureModeSession {
-				h.setSessionCookie(w, sessionID)
-			} else if mode == collector.CaptureModeGlobal && oldMode == collector.CaptureModeSession {
-				h.clearSessionCookie(w, sessionID)
-			}
+		// Handle cookie based on mode change
+		if mode == collector.CaptureModeSession && oldMode != collector.CaptureModeSession {
+			h.setSessionCookie(w, sessionID)
+		} else if mode == collector.CaptureModeGlobal && oldMode == collector.CaptureModeSession {
+			h.clearSessionCookie(w, sessionID)
 		}
-		h.respondWithCaptureState(w, r, sessionID, true, mode)
-		return
-	}
-
-	// Create new storage
-	storage := collector.NewCaptureStorage(sessionID, h.storageCapacity, mode)
-
-	// Register with aggregator
-	h.eventAggregator.RegisterStorage(storage)
-
-	// Track the session
-	h.sessions[sessionID] = &sessionState{
-		storageID:  storage.ID(),
-		lastActive: time.Now(),
-	}
-	h.sessionsMu.Unlock()
-
-	// Set session cookie for event filtering (if session mode)
-	if mode == collector.CaptureModeSession {
-		h.setSessionCookie(w, sessionID)
+	} else {
+		// New session created - set cookie if session mode
+		if mode == collector.CaptureModeSession {
+			h.setSessionCookie(w, sessionID)
+		}
 	}
 
 	h.respondWithCaptureState(w, r, sessionID, true, mode)
@@ -721,7 +571,7 @@ func (h *Handler) captureStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 	if storage == nil {
 		h.respondWithCaptureState(w, r, sessionID, false, collector.CaptureModeSession)
 		return
@@ -735,29 +585,23 @@ func (h *Handler) captureStop(w http.ResponseWriter, r *http.Request) {
 	h.respondWithCaptureState(w, r, sessionID, false, storage.CaptureMode())
 }
 
-// captureMode handles POST /capture/mode - changes capture mode
-func (h *Handler) captureMode(w http.ResponseWriter, r *http.Request) {
+// setCaptureMode handles POST /capture/mode - changes capture mode
+func (h *Handler) setCaptureMode(w http.ResponseWriter, r *http.Request) {
 	sessionID, hasSession := h.getSessionID(r)
 	if !hasSession {
 		http.Error(w, "Invalid session ID", http.StatusBadRequest)
 		return
 	}
 
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 	if storage == nil {
 		http.Error(w, "No capture session active", http.StatusNotFound)
 		return
 	}
 
 	// Parse mode from request
-	modeStr := r.FormValue("mode")
-	var mode collector.CaptureMode
-	switch modeStr {
-	case "session":
-		mode = collector.CaptureModeSession
-	case "global":
-		mode = collector.CaptureModeGlobal
-	default:
+	mode, ok := collector.ParseCaptureMode(r.FormValue("mode"))
+	if !ok {
 		http.Error(w, "Invalid mode, must be 'session' or 'global'", http.StatusBadRequest)
 		return
 	}
@@ -785,7 +629,7 @@ func (h *Handler) captureStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage := h.getSessionStorage(sessionID)
+	storage := h.sessions.Get(sessionID)
 	if storage == nil {
 		h.respondWithCaptureState(w, r, sessionID, false, collector.CaptureModeSession)
 		return
@@ -796,10 +640,7 @@ func (h *Handler) captureStatus(w http.ResponseWriter, r *http.Request) {
 
 // respondWithCaptureState responds with capture state as HTML for HTMX or JSON for API
 func (h *Handler) respondWithCaptureState(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID, active bool, mode collector.CaptureMode) {
-	modeStr := "session"
-	if mode == collector.CaptureModeGlobal {
-		modeStr = "global"
-	}
+	modeStr := mode.String()
 
 	// Check if this is an HTMX request
 	if r.Header.Get("HX-Request") == "true" {
@@ -840,9 +681,9 @@ func (h *Handler) captureCleanup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only clear session cookie - don't delete storage
-	// Storage will be cleaned up by idle timeout or explicit stop
-	// Cookie will be re-set on page load if session is still active
+	// Only clear session cookie - don't delete storage.
+	// Storage will be cleaned up by idle timeout or explicit stop.
+	// Cookie will be re-set on page load if session is still active.
 	h.clearSessionCookie(w, sessionID)
 
 	w.WriteHeader(http.StatusOK)

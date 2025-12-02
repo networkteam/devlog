@@ -45,6 +45,41 @@ const (
 	CaptureModeGlobal
 )
 
+// String returns the string representation of the capture mode
+func (m CaptureMode) String() string {
+	switch m {
+	case CaptureModeGlobal:
+		return "global"
+	case CaptureModeSession:
+		return "session"
+	default:
+		return "session"
+	}
+}
+
+// ParseCaptureMode parses a string into a CaptureMode.
+// Returns the mode and true if valid, or zero value and false if invalid.
+func ParseCaptureMode(s string) (CaptureMode, bool) {
+	switch s {
+	case "global":
+		return CaptureModeGlobal, true
+	case "session":
+		return CaptureModeSession, true
+	default:
+		return 0, false
+	}
+}
+
+// ParseCaptureModeOrDefault parses a string into a CaptureMode,
+// returning CaptureModeSession if the string is invalid or empty.
+func ParseCaptureModeOrDefault(s string) CaptureMode {
+	mode, ok := ParseCaptureMode(s)
+	if !ok {
+		return CaptureModeSession
+	}
+	return mode
+}
+
 // CaptureStorage implements EventStorage with configurable capture mode.
 // Each user gets their own CaptureStorage instance.
 type CaptureStorage struct {
