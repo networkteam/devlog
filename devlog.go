@@ -118,14 +118,17 @@ func (i *Instance) CollectDBQuery() func(ctx context.Context, dbQuery collector.
 	return i.dbQueryCollector.Collect
 }
 
-func (i *Instance) DashboardHandler(pathPrefix string) http.Handler {
-	handler := dashboard.NewHandler(
-		dashboard.HandlerOptions{
-			EventAggregator: i.eventAggregator,
-
-			PathPrefix: pathPrefix,
-		},
-	)
+// DashboardHandler creates a dashboard handler mounted at the given path prefix.
+// Use functional options from the dashboard package to customize behavior:
+//
+//	dlog.DashboardHandler("/_devlog",
+//	    dashboard.WithStorageCapacity(5000),
+//	    dashboard.WithSessionIdleTimeout(time.Minute),
+//	)
+func (i *Instance) DashboardHandler(pathPrefix string, opts ...dashboard.HandlerOption) http.Handler {
+	// Prepend WithPathPrefix to user-provided options
+	allOpts := append([]dashboard.HandlerOption{dashboard.WithPathPrefix(pathPrefix)}, opts...)
+	handler := dashboard.NewHandler(i.eventAggregator, allOpts...)
 	i.dashboardHandler = handler
 	return handler
 }

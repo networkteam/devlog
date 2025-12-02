@@ -31,21 +31,16 @@ type Handler struct {
 	mux http.Handler
 }
 
-type HandlerOptions struct {
-	// EventAggregator is the aggregator for collecting events
-	EventAggregator *collector.EventAggregator
+// NewHandler creates a new dashboard handler.
+// eventAggregator is the central event aggregator for collecting events.
+// Use HandlerOption functions to customize behavior (path prefix, storage capacity, etc.).
+func NewHandler(eventAggregator *collector.EventAggregator, opts ...HandlerOption) *Handler {
+	// Apply functional options
+	options := handlerOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
 
-	// PathPrefix where the Handler is mounted (e.g. "/_devlog"), can be left empty if the Handler is at the root ("/").
-	PathPrefix string
-	// TruncateAfter is the maximum number of events to show in the event list and dashboard.
-	TruncateAfter uint64
-	// StorageCapacity is the number of events per user storage. If 0, DefaultStorageCapacity is used.
-	StorageCapacity uint64
-	// SessionIdleTimeout is how long to wait after SSE disconnect before cleaning up. If 0, DefaultSessionIdleTimeout is used.
-	SessionIdleTimeout time.Duration
-}
-
-func NewHandler(options HandlerOptions) *Handler {
 	mux := http.NewServeMux()
 
 	storageCapacity := options.StorageCapacity
@@ -58,10 +53,15 @@ func NewHandler(options HandlerOptions) *Handler {
 		truncateAfter = storageCapacity
 	}
 
+	sessionIdleTimeout := options.SessionIdleTimeout
+	if sessionIdleTimeout == 0 {
+		sessionIdleTimeout = DefaultSessionIdleTimeout
+	}
+
 	sessions := NewSessionManager(SessionManagerOptions{
-		EventAggregator: options.EventAggregator,
+		EventAggregator: eventAggregator,
 		StorageCapacity: storageCapacity,
-		IdleTimeout:     options.SessionIdleTimeout,
+		IdleTimeout:     sessionIdleTimeout,
 	})
 
 	handler := &Handler{

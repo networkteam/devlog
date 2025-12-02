@@ -9,9 +9,12 @@ A lightweight, embeddable development dashboard for Go applications. Monitor log
 - **Logs**: Capture and browse structured logs with filtering and detail view
 - **HTTP Client**: Monitor outgoing HTTP requests with timing, headers, and response info
 - **HTTP Server**: Track incoming HTTP requests to your application
-- **Low Overhead**: Designed to be lightweight to run in development and testing setups
+- **SQL Queries**: Monitor database queries with timing and arguments
+- **On-Demand Capture**: Start/stop capturing through the dashboard UI with session or global modes
+- **Multi-User Isolation**: Each user gets their own event storage with independent clearing
+- **Low Overhead**: Designed to be lightweight; no events captured until you start a session
 - **Easy to Integrate**: Embeds into your application with minimal configuration
-- **Realtime**: See events as they occur
+- **Realtime**: See events as they occur via Server-Sent Events
 - **Clean UI**: Modern, minimalist interface with responsive design
 
 ## Note
@@ -85,6 +88,21 @@ Visit `http://localhost:8080/_devlog/` to access the dashboard.
 See [example](example/main.go) for a more complete example showing all features.
 
 ## Usage
+
+### Capture Sessions
+
+By default, no events are collected until a user starts a capture session through the dashboard UI. This on-demand approach:
+
+- Reduces overhead when not actively debugging
+- Provides isolation between users (each gets their own event storage)
+- Allows clearing events without affecting other users
+
+**Capture Modes:**
+
+- **Session Mode** (default): Only captures events from HTTP requests that include your session cookie. Useful for isolating your own requests in a shared environment.
+- **Global Mode**: Captures all events from all requests. Useful when you need to see everything happening in the application.
+
+Toggle between modes using the buttons in the dashboard header.
 
 ### Capturing Logs
 
@@ -250,14 +268,33 @@ The collected queries will be visible in the devlog dashboard, showing:
 
 ### Configuring the Dashboard
 
-Use options to customize the dashboard:
+Use functional options to customize the dashboard handler:
 
 ```go
-dashboard := devlog.NewWithOptions(devlog.Options{
-	LogCapacity:       1000,        // Maximum number of log entries to keep
-	HTTPClientCapacity: 100,        // Maximum number of HTTP client requests to keep
-	HTTPServerCapacity: 100,        // Maximum number of HTTP server requests to keep
-	SQLCapacity:       100,         // Maximum number of SQL queries to keep
+mux.Handle("/_devlog/", http.StripPrefix("/_devlog", dlog.DashboardHandler("/_devlog",
+	dashboard.WithStorageCapacity(5000),           // Events per user (default: 1000)
+	dashboard.WithSessionIdleTimeout(time.Minute), // Cleanup timeout (default: 30s)
+	dashboard.WithTruncateAfter(100),              // Limit displayed events
+)))
+```
+
+### Configuring Collectors
+
+Use options to customize collector behavior:
+
+```go
+dlog := devlog.NewWithOptions(devlog.Options{
+	HTTPServerOptions: &collector.HTTPServerOptions{
+		CaptureRequestBody:  true,
+		CaptureResponseBody: true,
+		MaxBodySize:         1024 * 1024,          // 1MB max body capture
+		SkipPaths:           []string{"/_devlog"}, // Skip dashboard routes
+	},
+	HTTPClientOptions: &collector.HTTPClientOptions{
+		CaptureRequestBody:  true,
+		CaptureResponseBody: true,
+		MaxBodySize:         1024 * 1024,
+	},
 })
 ```
 
@@ -292,15 +329,10 @@ The acceptance tests cover:
 
 ## TODOs
 
-- [ ] Add support for generic events/groups that can be used in user-code 
-- [ ] Implement on-demand activation of devlog (record / stop)
-- [ ] Implement reset of collected events
+- [ ] Add support for generic events/groups that can be used in user-code
 - [ ] Add pretty printing of JSON
 - [ ] Implement ad-hoc change of log level via slog.Leveler via UI
 - [ ] Implement filtering of events
-- [ ] Support plugins (e.g. for GraphQL) to add attributes to HTTP requests (operation name)
-- [x] Change display of time or implement timers via JS
-- [x] Implement SQL query logging with adapters
 
 ## License
 
