@@ -1,20 +1,18 @@
-package collector
+package collector_test
 
 import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 )
 
 // TestCollector collects items from a subscription channel for testing.
 // This is a test helper that should only be used in tests.
 type TestCollector[T any] struct {
-	t       testing.TB
-	items   []T
-	cancel  func()
-	timeout time.Duration
-	mu      sync.Mutex
+	t      testing.TB
+	items  []T
+	cancel func()
+	mu     sync.Mutex
 }
 
 // Collect starts collecting from a subscription.
@@ -25,9 +23,8 @@ func Collect[T any](t testing.TB, subscribe func(context.Context) <-chan T) *Tes
 	ch := subscribe(ctx)
 
 	c := &TestCollector[T]{
-		t:       t,
-		cancel:  cancel,
-		timeout: time.Second, // sensible default for tests
+		t:      t,
+		cancel: cancel,
 	}
 
 	// Collect items in background
@@ -40,33 +37,6 @@ func Collect[T any](t testing.TB, subscribe func(context.Context) <-chan T) *Tes
 	}()
 
 	return c
-}
-
-// Wait blocks until n items are received or timeout.
-// Fails the test on timeout. Returns collected items.
-func (c *TestCollector[T]) Wait(n int) []T {
-	c.t.Helper()
-	deadline := time.Now().Add(c.timeout)
-
-	for time.Now().Before(deadline) {
-		c.mu.Lock()
-		count := len(c.items)
-		if count >= n {
-			items := make([]T, count)
-			copy(items, c.items)
-			c.mu.Unlock()
-			c.cancel()
-			return items
-		}
-		c.mu.Unlock()
-		time.Sleep(time.Millisecond) // small poll interval
-	}
-
-	c.cancel()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.t.Fatalf("timeout waiting for %d items, got %d", n, len(c.items))
-	return nil
 }
 
 // Stop cancels collection and returns items collected so far.

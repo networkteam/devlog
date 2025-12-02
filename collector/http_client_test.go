@@ -36,7 +36,7 @@ func TestHTTPClientCollector_UnreadResponseBody(t *testing.T) {
 	httpCollector := collector.NewHTTPClientCollectorWithOptions(options)
 
 	// Start collecting before making request
-	collect := collector.Collect(t, httpCollector.Subscribe)
+	collect := Collect(t, httpCollector.Subscribe)
 
 	// Create a client with the collector's transport
 	client := &http.Client{
@@ -55,8 +55,7 @@ func TestHTTPClientCollector_UnreadResponseBody(t *testing.T) {
 	// that doesn't consume the response body
 	resp.Body.Close()
 
-	// Wait for the captured request
-	requests := collect.Wait(1)
+	requests := collect.Stop()
 
 	// Verify the captured request details
 	req := requests[0]

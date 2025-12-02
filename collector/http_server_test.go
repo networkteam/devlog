@@ -37,7 +37,7 @@ func TestHTTPServerCollector_BasicRequest(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making request
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Create a client and make a request
 	client := &http.Client{}
@@ -55,8 +55,7 @@ func TestHTTPServerCollector_BasicRequest(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Hello, World!", string(body))
 
-	// Wait for the collected request
-	requests := collect.Wait(1)
+	requests := collect.Stop()
 
 	// Verify the request details
 	serverReq := requests[0]
@@ -110,7 +109,7 @@ func TestHTTPServerCollector_GetRequestWithBody(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making request
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Create a client and make a GET request WITH a body
 	client := &http.Client{}
@@ -128,8 +127,7 @@ func TestHTTPServerCollector_GetRequestWithBody(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "You sent: "+requestBody, string(respBody))
 
-	// Wait for the collected request
-	requests := collect.Wait(1)
+	requests := collect.Stop()
 
 	// Verify the request details
 	serverReq := requests[0]
@@ -176,7 +174,7 @@ func TestHTTPServerCollector_PostRequestWithBody(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making request
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Prepare request body (JSON)
 	requestBody := map[string]interface{}{
@@ -203,8 +201,7 @@ func TestHTTPServerCollector_PostRequestWithBody(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(jsonBody), string(respBody))
 
-	// Wait for the collected request
-	requests := collect.Wait(1)
+	requests := collect.Stop()
 
 	// Verify the request details
 	serverReq := requests[0]
@@ -269,7 +266,7 @@ func TestHTTPServerCollector_DifferentStatusCodes(t *testing.T) {
 			defer server.Close()
 
 			// Start collecting before making request
-			collect := collector.Collect(t, serverCollector.Subscribe)
+			collect := Collect(t, serverCollector.Subscribe)
 
 			// Create a client
 			client := &http.Client{}
@@ -294,8 +291,7 @@ func TestHTTPServerCollector_DifferentStatusCodes(t *testing.T) {
 				assert.Equal(t, fmt.Sprintf("Status: %d", statusCode), string(body))
 			}
 
-			// Wait for the collected request
-			requests := collect.Wait(1)
+			requests := collect.Stop()
 			require.Len(t, requests, 1, "Should have collected request with status code %d", statusCode)
 			assert.Equal(t, statusCode, requests[0].StatusCode)
 		})
@@ -326,7 +322,7 @@ func TestHTTPServerCollector_LargeResponseBody(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making request
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Create a client and make a request
 	client := &http.Client{}
@@ -343,8 +339,7 @@ func TestHTTPServerCollector_LargeResponseBody(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 10000, len(body)) // 10 KB
 
-	// Wait for the collected request
-	requests := collect.Wait(1)
+	requests := collect.Stop()
 
 	// Verify the request details
 	serverReq := requests[0]
@@ -380,7 +375,7 @@ func TestHTTPServerCollector_SkipPaths(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making requests
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Create a client
 	client := &http.Client{}
@@ -464,7 +459,7 @@ func TestHTTPServerCollector_StreamingResponse(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making request
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Create a client and make a request
 	client := &http.Client{}
@@ -494,8 +489,7 @@ func TestHTTPServerCollector_StreamingResponse(t *testing.T) {
 	expectedResponse := "Chunk 0\nChunk 1\nChunk 2\nChunk 3\nChunk 4\n"
 	assert.Equal(t, expectedResponse, receivedData.String())
 
-	// Wait for the collected request
-	requests := collect.Wait(1)
+	requests := collect.Stop()
 
 	// Verify the request details
 	serverReq := requests[0]
@@ -537,7 +531,7 @@ func TestHTTPServerCollector_DisabledBodyCapture(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making request
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Prepare request body
 	requestBody := `{"message":"This body should not be captured"}`
@@ -558,8 +552,7 @@ func TestHTTPServerCollector_DisabledBodyCapture(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, requestBody, string(respBody))
 
-	// Wait for the collected request
-	requests := collect.Wait(1)
+	requests := collect.Stop()
 
 	// Verify the request details
 	serverReq := requests[0]
@@ -623,7 +616,7 @@ func TestHTTPServerCollector_UnreadRequestBodyCapture(t *testing.T) {
 			defer server.Close()
 
 			// Start collecting before making request
-			collect := collector.Collect(t, serverCollector.Subscribe)
+			collect := Collect(t, serverCollector.Subscribe)
 
 			// Create a client and make a POST request with a body that won't be read
 			client := &http.Client{}
@@ -639,8 +632,7 @@ func TestHTTPServerCollector_UnreadRequestBodyCapture(t *testing.T) {
 			// Verify expected status
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 
-			// Wait for the collected request
-			requests := collect.Wait(1)
+			requests := collect.Stop()
 
 			// Get the request (should be the only one)
 			serverReq := requests[0]
@@ -691,7 +683,7 @@ func TestHTTPServerCollector_MultipleHandlers(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making requests
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Create a client
 	client := &http.Client{}
@@ -929,7 +921,7 @@ func TestHTTPServerCollector_WithEventAggregator_NoStorage(t *testing.T) {
 	defer server.Close()
 
 	// Start collecting before making request
-	collect := collector.Collect(t, serverCollector.Subscribe)
+	collect := Collect(t, serverCollector.Subscribe)
 
 	// Make a request (no storage means ShouldCapture returns false, early bailout)
 	client := &http.Client{}
