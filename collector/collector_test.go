@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestCollector collects items from a subscription channel for testing.
@@ -47,4 +48,31 @@ func (c *TestCollector[T]) Stop() []T {
 	items := make([]T, len(c.items))
 	copy(items, c.items)
 	return items
+}
+
+// Wait blocks until at least n items are collected or timeout (3 seconds).
+// Returns the collected items after stopping collection.
+func (c *TestCollector[T]) Wait(n int) []T {
+	c.t.Helper()
+
+	timeout := 3 * time.Second
+	deadline := time.Now().Add(timeout)
+
+	for {
+		c.mu.Lock()
+		count := len(c.items)
+		c.mu.Unlock()
+
+		if count >= n {
+			break
+		}
+
+		if time.Now().After(deadline) {
+			c.t.Fatalf("Timeout waiting for %d items, got %d", n, count)
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return c.Stop()
 }
