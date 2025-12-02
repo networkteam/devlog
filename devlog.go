@@ -31,30 +31,18 @@ func (i *Instance) Close() {
 }
 
 type Options struct {
-	// LogCapacity is the maximum number of log entries to keep.
-	// Default: 0
-	LogCapacity uint64
 	// LogOptions are the options for the log collector.
 	// Default: nil, will use collector.DefaultLogOptions()
 	LogOptions *collector.LogOptions
 
-	// HTTPClientCapacity is the maximum number of HTTP client requests (outgoing) to keep.
-	// Default: 0
-	HTTPClientCapacity uint64
 	// HTTPClientOptions are the options for the HTTP client collector.
 	// Default: nil, will use collector.DefaultHTTPClientOptions()
 	HTTPClientOptions *collector.HTTPClientOptions
 
-	// HTTPServerCapacity is the maximum number of HTTP server requests (incoming) to keep.
-	// Default: 0
-	HTTPServerCapacity uint64
 	// HTTPServerOptions are the options for the HTTP server collector.
 	// Default: nil, will use collector.DefaultHTTPServerOptions()
 	HTTPServerOptions *collector.HTTPServerOptions
 
-	// DBQueryCapacity is the maximum number of database queries to keep.
-	// Default: 0
-	DBQueryCapacity uint64
 	// DBQueryOptions are the options for the database query collector.
 	// Default: nil, will use collector.DefaultDBQueryOptions()
 	DBQueryOptions *collector.DBQueryOptions
@@ -99,10 +87,10 @@ func NewWithOptions(options Options) *Instance {
 	dbQueryOptions.EventAggregator = eventAggregator
 
 	instance := &Instance{
-		logCollector:        collector.NewLogCollectorWithOptions(options.LogCapacity, logOptions),
-		httpClientCollector: collector.NewHTTPClientCollectorWithOptions(options.HTTPClientCapacity, httpClientOptions),
-		httpServerCollector: collector.NewHTTPServerCollectorWithOptions(options.HTTPServerCapacity, httpServerOptions),
-		dbQueryCollector:    collector.NewDBQueryCollectorWithOptions(options.DBQueryCapacity, dbQueryOptions),
+		logCollector:        collector.NewLogCollectorWithOptions(logOptions),
+		httpClientCollector: collector.NewHTTPClientCollectorWithOptions(httpClientOptions),
+		httpServerCollector: collector.NewHTTPServerCollectorWithOptions(httpServerOptions),
+		dbQueryCollector:    collector.NewDBQueryCollectorWithOptions(dbQueryOptions),
 		eventAggregator:     eventAggregator,
 	}
 	return instance

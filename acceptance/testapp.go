@@ -30,20 +30,16 @@ func NewTestApp(t *testing.T) *TestApp {
 	t.Helper()
 
 	dlog := devlog.NewWithOptions(devlog.Options{
-		HTTPServerCapacity: 100,
 		HTTPServerOptions: &collector.HTTPServerOptions{
 			MaxBodySize:         1024 * 1024,
 			CaptureRequestBody:  true,
 			CaptureResponseBody: true,
 		},
-		HTTPClientCapacity: 100,
 		HTTPClientOptions: &collector.HTTPClientOptions{
 			MaxBodySize:         1024 * 1024,
 			CaptureRequestBody:  true,
 			CaptureResponseBody: true,
 		},
-		LogCapacity:     100,
-		DBQueryCapacity: 100,
 	})
 
 	// Create an HTTP client that collects requests

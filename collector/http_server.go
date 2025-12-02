@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -61,45 +60,28 @@ func DefaultHTTPServerOptions() HTTPServerOptions {
 
 // HTTPServerCollector collects incoming HTTP requests
 type HTTPServerCollector struct {
-	buffer *RingBuffer[HTTPServerRequest]
-
 	options         HTTPServerOptions
 	notifier        *Notifier[HTTPServerRequest]
 	eventAggregator *EventAggregator
-
-	mu sync.RWMutex
 }
 
 // NewHTTPServerCollector creates a new collector for incoming HTTP requests
-func NewHTTPServerCollector(capacity uint64) *HTTPServerCollector {
-	return NewHTTPServerCollectorWithOptions(capacity, DefaultHTTPServerOptions())
+func NewHTTPServerCollector() *HTTPServerCollector {
+	return NewHTTPServerCollectorWithOptions(DefaultHTTPServerOptions())
 }
 
 // NewHTTPServerCollectorWithOptions creates a new collector with specified options
-func NewHTTPServerCollectorWithOptions(capacity uint64, options HTTPServerOptions) *HTTPServerCollector {
+func NewHTTPServerCollectorWithOptions(options HTTPServerOptions) *HTTPServerCollector {
 	notifierOptions := DefaultNotifierOptions()
 	if options.NotifierOptions != nil {
 		notifierOptions = *options.NotifierOptions
 	}
 
-	collector := &HTTPServerCollector{
+	return &HTTPServerCollector{
 		options:         options,
 		notifier:        NewNotifierWithOptions[HTTPServerRequest](notifierOptions),
 		eventAggregator: options.EventAggregator,
 	}
-	if capacity > 0 {
-		collector.buffer = NewRingBuffer[HTTPServerRequest](capacity)
-	}
-
-	return collector
-}
-
-// GetRequests returns the most recent n HTTP server requests
-func (c *HTTPServerCollector) GetRequests(n uint64) []HTTPServerRequest {
-	if c.buffer == nil {
-		return nil
-	}
-	return c.buffer.GetRecords(n)
 }
 
 // Subscribe returns a channel that receives notifications of new requests
@@ -107,11 +89,8 @@ func (c *HTTPServerCollector) Subscribe(ctx context.Context) <-chan HTTPServerRe
 	return c.notifier.Subscribe(ctx)
 }
 
-// Add adds an HTTP server request to the collector
+// Add adds an HTTP server request to the collector and notifies subscribers
 func (c *HTTPServerCollector) Add(req HTTPServerRequest) {
-	if c.buffer != nil {
-		c.buffer.Add(req)
-	}
 	c.notifier.Notify(req)
 }
 
@@ -254,7 +233,6 @@ func (c *HTTPServerCollector) Middleware(next http.Handler) http.Handler {
 // Close releases resources used by the collector
 func (c *HTTPServerCollector) Close() {
 	c.notifier.Close()
-	c.buffer = nil
 }
 
 // captureResponseWriter is a wrapper for http.ResponseWriter that captures the response

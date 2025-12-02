@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -42,37 +41,28 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 
 // HTTPClientCollector collects outgoing HTTP requests
 type HTTPClientCollector struct {
-	buffer *RingBuffer[HTTPClientRequest]
-
 	options         HTTPClientOptions
 	notifier        *Notifier[HTTPClientRequest]
 	eventAggregator *EventAggregator
-
-	mu sync.RWMutex
 }
 
 // NewHTTPClientCollector creates a new collector for outgoing HTTP requests
-func NewHTTPClientCollector(capacity uint64) *HTTPClientCollector {
-	return NewHTTPClientCollectorWithOptions(capacity, DefaultHTTPClientOptions())
+func NewHTTPClientCollector() *HTTPClientCollector {
+	return NewHTTPClientCollectorWithOptions(DefaultHTTPClientOptions())
 }
 
 // NewHTTPClientCollectorWithOptions creates a new collector with specified options
-func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOptions) *HTTPClientCollector {
+func NewHTTPClientCollectorWithOptions(options HTTPClientOptions) *HTTPClientCollector {
 	notifierOptions := DefaultNotifierOptions()
 	if options.NotifierOptions != nil {
 		notifierOptions = *options.NotifierOptions
 	}
 
-	collector := &HTTPClientCollector{
+	return &HTTPClientCollector{
 		options:         options,
 		notifier:        NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
 		eventAggregator: options.EventAggregator,
 	}
-	if capacity > 0 {
-		collector.buffer = NewRingBuffer[HTTPClientRequest](capacity)
-	}
-
-	return collector
 }
 
 // Transport returns an http.RoundTripper that captures request/response data
@@ -87,31 +77,19 @@ func (c *HTTPClientCollector) Transport(next http.RoundTripper) http.RoundTrippe
 	}
 }
 
-// GetRequests returns the most recent n HTTP requests
-func (c *HTTPClientCollector) GetRequests(n uint64) []HTTPClientRequest {
-	if c.buffer == nil {
-		return nil
-	}
-	return c.buffer.GetRecords(n)
-}
-
-// Subscribe returns a channel that receives notifications of new log records
+// Subscribe returns a channel that receives notifications of new HTTP requests
 func (c *HTTPClientCollector) Subscribe(ctx context.Context) <-chan HTTPClientRequest {
 	return c.notifier.Subscribe(ctx)
 }
 
-// Add adds an HTTP request to the collector
+// Add adds an HTTP request to the collector and notifies subscribers
 func (c *HTTPClientCollector) Add(req HTTPClientRequest) {
-	if c.buffer != nil {
-		c.buffer.Add(req)
-	}
 	c.notifier.Notify(req)
 }
 
 // Close releases resources used by the collector
 func (c *HTTPClientCollector) Close() {
 	c.notifier.Close()
-	c.buffer = nil
 }
 
 // httpClientTransport is an http.RoundTripper that captures HTTP request/response data

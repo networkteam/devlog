@@ -19,21 +19,16 @@ func TestE2E(t *testing.T) {
 	runtime.ReadMemStats(&memBefore)
 
 	dlog := devlog.NewWithOptions(devlog.Options{
-		LogCapacity:        50,
-		LogOptions:         nil,
-		HTTPClientCapacity: 10,
 		HTTPClientOptions: &collector.HTTPClientOptions{
 			MaxBodySize:         1024 * 1024,
 			CaptureRequestBody:  true,
 			CaptureResponseBody: true,
 		},
-		HTTPServerCapacity: 10,
 		HTTPServerOptions: &collector.HTTPServerOptions{
 			MaxBodySize:         1024 * 1024,
 			CaptureRequestBody:  true,
 			CaptureResponseBody: true,
 		},
-		DBQueryCapacity: 10,
 	})
 
 	mux := http.NewServeMux()

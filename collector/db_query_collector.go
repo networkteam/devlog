@@ -23,26 +23,15 @@ type DBQuery struct {
 }
 
 type DBQueryCollector struct {
-	buffer          *RingBuffer[DBQuery]
 	notifier        *Notifier[DBQuery]
 	eventAggregator *EventAggregator
 }
 
 func (c *DBQueryCollector) Collect(ctx context.Context, query DBQuery) {
-	if c.buffer != nil {
-		c.buffer.Add(query)
-	}
 	c.notifier.Notify(query)
 	if c.eventAggregator != nil {
 		c.eventAggregator.CollectEvent(ctx, query)
 	}
-}
-
-func (c *DBQueryCollector) Tail(n int) []DBQuery {
-	if c.buffer == nil {
-		return nil
-	}
-	return c.buffer.GetRecords(uint64(n))
 }
 
 // Subscribe returns a channel that receives notifications of new query records
@@ -62,29 +51,23 @@ func DefaultDBQueryOptions() DBQueryOptions {
 	return DBQueryOptions{}
 }
 
-func NewDBQueryCollector(capacity uint64) *DBQueryCollector {
-	return NewDBQueryCollectorWithOptions(capacity, DefaultDBQueryOptions())
+func NewDBQueryCollector() *DBQueryCollector {
+	return NewDBQueryCollectorWithOptions(DefaultDBQueryOptions())
 }
 
-func NewDBQueryCollectorWithOptions(capacity uint64, options DBQueryOptions) *DBQueryCollector {
+func NewDBQueryCollectorWithOptions(options DBQueryOptions) *DBQueryCollector {
 	notifierOptions := DefaultNotifierOptions()
 	if options.NotifierOptions != nil {
 		notifierOptions = *options.NotifierOptions
 	}
 
-	collector := &DBQueryCollector{
+	return &DBQueryCollector{
 		notifier:        NewNotifierWithOptions[DBQuery](notifierOptions),
 		eventAggregator: options.EventAggregator,
 	}
-	if capacity > 0 {
-		collector.buffer = NewRingBuffer[DBQuery](capacity)
-	}
-
-	return collector
 }
 
 // Close releases resources used by the collector
 func (c *DBQueryCollector) Close() {
 	c.notifier.Close()
-	c.buffer = nil
 }
