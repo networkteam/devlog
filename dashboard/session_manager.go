@@ -3,8 +3,6 @@ package dashboard
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -207,7 +205,6 @@ func (sm *SessionManager) cleanupIdleSessions() {
 
 	for sessionID, state := range sm.sessions {
 		if now.Sub(state.lastActive) > sm.idleTimeout {
-			fmt.Fprintf(os.Stderr, "[DEBUG] %s: cleanupIdleSessions: cleaning up session %s, idle for %v\n", time.Now().Format(time.DateTime), sessionID, now.Sub(state.lastActive))
 			if storage := sm.eventAggregator.GetStorage(state.storageID); storage != nil {
 				storage.Close()
 			}
