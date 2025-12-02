@@ -1,0 +1,46 @@
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - main
+  pull_request:
+
+name: run tests
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+      - name: Run tests
+        run: go test -v ./...
+
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+      - name: Restore Playwright browsers cache
+        id: playwright-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('acceptance/go.sum') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+      - name: Run acceptance tests
+        run: go test -v -timeout 5m ./acceptance/...
+      - name: Save Playwright browsers cache
+        if: always() && steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('acceptance/go.sum') }}

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +33,10 @@ func TestHTTPClientCollector_UnreadResponseBody(t *testing.T) {
 	// Create a collector with specific options for testing
 	options := collector.DefaultHTTPClientOptions()
 	options.MaxBodySize = 1024 // Ensure it's large enough for our test data
-	httpCollector := collector.NewHTTPClientCollectorWithOptions(10, options)
+	httpCollector := collector.NewHTTPClientCollectorWithOptions(options)
+
+	// Start collecting before making request
+	collect := Collect(t, httpCollector.Subscribe)
 
 	// Create a client with the collector's transport
 	client := &http.Client{
@@ -53,12 +55,7 @@ func TestHTTPClientCollector_UnreadResponseBody(t *testing.T) {
 	// that doesn't consume the response body
 	resp.Body.Close()
 
-	// Add a delay to ensure async operations complete
-	time.Sleep(100 * time.Millisecond)
-
-	// Get the captured requests
-	requests := httpCollector.GetRequests(10)
-	require.Len(t, requests, 1)
+	requests := collect.Stop()
 
 	// Verify the captured request details
 	req := requests[0]

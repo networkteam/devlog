@@ -17,33 +17,42 @@ import (
 type EventListProps struct {
     SelectedEventID *uuid.UUID
     Events []*collector.Event
+    CaptureActive bool
+    CaptureMode string // "session" or "global"
 }
 
 templ EventList(props EventListProps) {
-	<ul
-	    id="event-list"
-	    class="divide-y divide-neutral-300"
-        hx-ext="sse"
-        sse-connect={fmt.Sprintf("%s/events-sse", MustGetHandlerOptions(ctx).PathPrefix)}
-        sse-swap="new-event"
-        hx-swap="afterbegin"
-        data-truncate-after={ MustGetHandlerOptions(ctx).TruncateAfter }
-        hx-on:htmx:after-swap="
-            // Limit number of elements in list
-            const limit = this.dataset.truncateAfter;
-            const items = this.querySelectorAll('& > li');
-            if (items.length > limit) {
-                const itemsToRemove = items.length - limit;
-                for (let i = 0; i < itemsToRemove; i++) {
-                    items[items.length - 1 - i].remove();
+    {{ opts := MustGetHandlerOptions(ctx) }}
+    if props.CaptureActive {
+        <ul
+            id="event-list"
+            class="mt-3 flex flex-col gap-5"
+            hx-ext="sse"
+            sse-connect={fmt.Sprintf("%s/s/%s/events-sse?mode=%s", opts.PathPrefix, opts.SessionID, props.CaptureMode)}
+            sse-swap="new-event"
+            hx-swap="afterbegin"
+            data-truncate-after={ opts.TruncateAfter }
+            hx-on:htmx:after-swap="
+                // Limit number of elements in list
+                const limit = this.dataset.truncateAfter;
+                const items = this.querySelectorAll('& > li');
+                if (items.length > limit) {
+                    const itemsToRemove = items.length - limit;
+                    for (let i = 0; i < itemsToRemove; i++) {
+                        items[items.length - 1 - i].remove();
+                    }
                 }
+            "
+        >
+            for _, event := range props.Events {
+                @EventListItem(event, props.SelectedEventID)
             }
-        "
-    >
-	    for _, event := range props.Events {
-            @EventListItem(event, props.SelectedEventID)
-		}
-	</ul>
+        </ul>
+    } else {
+        <div id="event-list" class="flex items-center justify-center h-full text-white/50 p-8">
+            <p>Click Record to start capturing events</p>
+        </div>
+    }
 }
 
 
@@ -66,19 +75,30 @@ func isEventSelected(event *collector.Event, selectedEventID *uuid.UUID) bool {
 
 templ linkListItem(event *collector.Event, selectedEventID *uuid.UUID) {
     {{ isSelected := isEventSelected(event, selectedEventID) }}
+    {{ opts := MustGetHandlerOptions(ctx) }}
     <div
         id={fmt.Sprintf("event-%s-item", event.ID)}
         class={
-            "p-3 hover:bg-neutral-100 cursor-pointer transition-colors [.selected]:bg-blue-50",
+            "p-3 bg-white hover:bg-neutral-100 cursor-pointer transition-colors [.selected]:bg-blue-50",
             templ.KV("selected", isSelected),
         }
-        hx-get={fmt.Sprintf("%s/event/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID)}
+        hx-get={fmt.Sprintf("%s/s/%s/event/%s", opts.PathPrefix, opts.SessionID, event.ID)}
         hx-target="#event-details"
-        hx-push-url={fmt.Sprintf("?id=%s", event.ID)}
+        hx-push-url={opts.BuildEventDetailURL(event.ID.String())}
         hx-swap="outerHTML"
     >
         { children... }
     </div>
+}
+
+templ childEventList(children []*collector.Event, selectedEventID *uuid.UUID) {
+    if len(children) > 0 {
+        <ul class="pl-2 divide-y divide-neutral-300 border-t border-b border-neutral-300 bg-neutral-300">
+            for _, subEvent := range children {
+                @EventListItem(subEvent, selectedEventID)
+            }
+        </ul>
+    }
 }
 
 templ tagList(tags map[string]string) {
@@ -123,13 +143,7 @@ templ HTTPRequestListItem(event *collector.Event, selectedEventID *uuid.UUID) {
                 @tagList(request.Tags)
             }
         }
-        if len(event.Children) > 0 {
-            <ul class="ml-2 divide-y divide-neutral-300 border-l border-neutral-300">
-                for _, subEvent := range event.Children {
-                    @EventListItem(subEvent, selectedEventID)
-                }
-            </ul>
-        }
+        @childEventList(event.Children, selectedEventID)
     </li>
 }
 
@@ -163,13 +177,7 @@ templ HTTPServerRequestListItem(event *collector.Event, selectedEventID *uuid.UU
                 @tagList(request.Tags)
             }
         }
-        if len(event.Children) > 0 {
-            <ul class="mt-2 ml-2 divide-y divide-neutral-300 border-l border-neutral-300">
-                for _, subEvent := range event.Children {
-                    @EventListItem(subEvent, selectedEventID)
-                }
-            </ul>
-        }
+        @childEventList(event.Children, selectedEventID)
     </li>
 }
 

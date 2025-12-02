@@ -1,21 +1,36 @@
 package views
 
 import (
-    "github.com/networkteam/devlog/collector"
+	"fmt"
+	"github.com/networkteam/devlog/collector"
 )
 
 type DashboardProps struct {
-    SelectedEvent *collector.Event
-    Events []*collector.Event
+	SelectedEvent *collector.Event
+	Events        []*collector.Event
+	CaptureActive bool
+	CaptureMode   string // "session" or "global"
 }
 
 templ Dashboard(props DashboardProps) {
-    {{ eventListProps := EventListProps{Events: props.Events} }}
-    if props.SelectedEvent != nil {
-        {{ eventListProps.SelectedEventID = &props.SelectedEvent.ID }}
-    }
-
-	@Layout() {
-		@SplitLayout(EventList(eventListProps), EventDetailContainer(props.SelectedEvent))
+	{{ eventListProps := EventListProps{Events: props.Events, CaptureActive: props.CaptureActive, CaptureMode: props.CaptureMode} }}
+	if props.SelectedEvent != nil {
+		{{ eventListProps.SelectedEventID = &props.SelectedEvent.ID }}
 	}
+	{{ capture := CaptureState{Active: props.CaptureActive, Mode: props.CaptureMode} }}
+	@Layout(capture) {
+		@SplitLayout(EventListContainer(eventListProps), EventDetailContainer(props.SelectedEvent))
+	}
+}
+
+templ EventListContainer(props EventListProps) {
+	{{ opts := MustGetHandlerOptions(ctx) }}
+	<div
+		id="event-list-container"
+		hx-get={ fmt.Sprintf("%s/s/%s/event-list", opts.PathPrefix, opts.SessionID) }
+		hx-trigger="capture-state-changed from:body"
+		hx-swap="innerHTML"
+	>
+		@EventList(props)
+	</div>
 }

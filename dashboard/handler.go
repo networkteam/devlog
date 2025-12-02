@@ -2,10 +2,11 @@ package dashboard
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gofrs/uuid"
@@ -15,8 +16,15 @@ import (
 	"github.com/networkteam/devlog/dashboard/views"
 )
 
+// DefaultStorageCapacity is the default number of events per storage
+const DefaultStorageCapacity uint64 = 1000
+
+// DefaultSessionIdleTimeout is the default time before an inactive session is cleaned up
+const DefaultSessionIdleTimeout = 30 * time.Second
+
 type Handler struct {
-	eventCollector *collector.EventCollector
+	sessions        *SessionManager
+	eventAggregator *collector.EventAggregator
 
 	pathPrefix    string
 	truncateAfter uint64
@@ -24,90 +32,224 @@ type Handler struct {
 	mux http.Handler
 }
 
-type HandlerOptions struct {
-	EventCollector *collector.EventCollector
-
-	// PathPrefix where the Handler is mounted (e.g. "/_devlog"), can be left empty if the Handler is at the root ("/").
-	PathPrefix string
-	// TruncateAfter is the maximum number of events to show in the event list and dashboard. If 0 or larger than the event collector capacity, it will use the collector's capacity.
-	TruncateAfter uint64
-}
-
-func NewHandler(options HandlerOptions) *Handler {
-	mux := http.NewServeMux()
-	if options.TruncateAfter == 0 || options.TruncateAfter > options.EventCollector.Capacity() {
-		options.TruncateAfter = options.EventCollector.Capacity()
+// NewHandler creates a new dashboard handler.
+// eventAggregator is the central event aggregator for collecting events.
+// Use HandlerOption functions to customize behavior (path prefix, storage capacity, etc.).
+func NewHandler(eventAggregator *collector.EventAggregator, opts ...HandlerOption) *Handler {
+	// Apply functional options
+	options := handlerOptions{}
+	for _, opt := range opts {
+		opt(&options)
 	}
+
+	mux := http.NewServeMux()
+
+	storageCapacity := options.StorageCapacity
+	if storageCapacity == 0 {
+		storageCapacity = DefaultStorageCapacity
+	}
+
+	truncateAfter := options.TruncateAfter
+	if truncateAfter == 0 || truncateAfter > storageCapacity {
+		truncateAfter = storageCapacity
+	}
+
+	sessionIdleTimeout := options.SessionIdleTimeout
+	if sessionIdleTimeout == 0 {
+		sessionIdleTimeout = DefaultSessionIdleTimeout
+	}
+
+	sessions := NewSessionManager(SessionManagerOptions{
+		EventAggregator: eventAggregator,
+		StorageCapacity: storageCapacity,
+		IdleTimeout:     sessionIdleTimeout,
+		MaxSessions:     options.MaxSessions,
+	})
 
 	handler := &Handler{
-		eventCollector: options.EventCollector,
-		truncateAfter:  options.TruncateAfter,
-
-		pathPrefix: options.PathPrefix,
-
-		mux: setHandlerOptions(options, mux),
+		sessions:        sessions,
+		eventAggregator: eventAggregator,
+		truncateAfter:   truncateAfter,
+		pathPrefix:      options.PathPrefix,
+		mux:             mux,
 	}
 
-	mux.HandleFunc("GET /{$}", handler.root)
-	mux.HandleFunc("GET /event-list", handler.getEventList)
-	mux.HandleFunc("DELETE /event-list", handler.clearEventList)
-	mux.HandleFunc("GET /event/{eventId}", handler.getEventDetails)
-	mux.HandleFunc("GET /events-sse", handler.getEventsSSE)
-	mux.HandleFunc("GET /download/request-body/{eventId}", handler.downloadRequestBody)
-	mux.HandleFunc("GET /download/response-body/{eventId}", handler.downloadResponseBody)
+	// Static assets (no session required)
+	mux.Handle("GET /static/", http.StripPrefix("/static", http.FileServerFS(static.Assets)))
 
-	mux.Handle("/static/", http.StripPrefix("/static", http.FileServerFS(static.Assets)))
+	// Global stats endpoint (no session required)
+	mux.HandleFunc("GET /stats", handler.getStats)
+
+	// Root redirect - creates new session and redirects
+	mux.HandleFunc("GET /{$}", handler.rootRedirect)
+
+	// Session-scoped routes under /s/{sid}/ (the /s/ prefix avoids conflicts with /static/)
+	mux.HandleFunc("GET /s/{sid}/{$}", handler.root)
+	mux.HandleFunc("GET /s/{sid}/event-list", handler.getEventList)
+	mux.HandleFunc("DELETE /s/{sid}/event-list", handler.clearEventList)
+	mux.HandleFunc("GET /s/{sid}/event/{eventId}", handler.getEventDetails)
+	mux.HandleFunc("GET /s/{sid}/events-sse", handler.getEventsSSE)
+	mux.HandleFunc("GET /s/{sid}/download/request-body/{eventId}", handler.downloadRequestBody)
+	mux.HandleFunc("GET /s/{sid}/download/response-body/{eventId}", handler.downloadResponseBody)
+
+	// Capture control endpoints
+	mux.HandleFunc("POST /s/{sid}/capture/start", handler.captureStart)
+	mux.HandleFunc("POST /s/{sid}/capture/stop", handler.captureStop)
+	mux.HandleFunc("POST /s/{sid}/capture/mode", handler.setCaptureMode)
+	mux.HandleFunc("GET /s/{sid}/capture/status", handler.captureStatus)
+	mux.HandleFunc("POST /s/{sid}/capture/cleanup", handler.captureCleanup)
 
 	return handler
 }
 
-func setHandlerOptions(options HandlerOptions, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		ctx = views.WithHandlerOptions(ctx, views.HandlerOptions{
-			PathPrefix:    options.PathPrefix,
-			TruncateAfter: options.TruncateAfter,
-		})
-		r = r.WithContext(ctx)
-
-		next.ServeHTTP(w, r)
+// withHandlerOptions is a helper to set HandlerOptions in context before rendering
+func (h *Handler) withHandlerOptions(r *http.Request, sessionID string, captureActive bool, captureMode string) *http.Request {
+	ctx := views.WithHandlerOptions(r.Context(), views.HandlerOptions{
+		PathPrefix:    h.pathPrefix,
+		TruncateAfter: h.truncateAfter,
+		SessionID:     sessionID,
+		CaptureActive: captureActive,
+		CaptureMode:   captureMode,
 	})
+	return r.WithContext(ctx)
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
+// Close shuts down the handler and releases resources
+func (h *Handler) Close() {
+	h.sessions.Close()
+}
+
+// getSessionID extracts the session ID from the URL path parameter
+func (h *Handler) getSessionID(r *http.Request) (uuid.UUID, bool) {
+	sidStr := r.PathValue("sid")
+	if sidStr == "" {
+		return uuid.Nil, false
+	}
+	sessionID, err := uuid.FromString(sidStr)
+	if err != nil {
+		return uuid.Nil, false
+	}
+	return sessionID, true
+}
+
+// setSessionCookie sets the session cookie for event filtering
+func (h *Handler) setSessionCookie(w http.ResponseWriter, sessionID uuid.UUID) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     collector.SessionCookiePrefix + sessionID.String(),
+		Value:    "1",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// clearSessionCookie clears the session cookie
+func (h *Handler) clearSessionCookie(w http.ResponseWriter, sessionID uuid.UUID) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     collector.SessionCookiePrefix + sessionID.String(),
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+}
+
+// rootRedirect redirects to a new session
+func (h *Handler) rootRedirect(w http.ResponseWriter, r *http.Request) {
+	sessionID := uuid.Must(uuid.NewV4())
+	http.Redirect(w, r, fmt.Sprintf("%s/s/%s/", h.pathPrefix, sessionID), http.StatusTemporaryRedirect)
+}
+
 func (h *Handler) root(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
+	sessionID, ok := h.getSessionID(r)
+	if !ok {
+		http.Error(w, "Invalid session ID", http.StatusBadRequest)
+		return
+	}
+
+	storage := h.sessions.Get(sessionID)
+
+	// Check URL params for capture state - allows recreating session from URL
+	captureParam := r.URL.Query().Get("capture")
+	modeParam := r.URL.Query().Get("mode")
+	if modeParam == "" {
+		modeParam = "session" // default
+	}
+
+	// Recreate session from URL params if needed
+	if storage == nil && captureParam == "true" {
+		mode := collector.ParseCaptureModeOrDefault(modeParam)
+		var created bool
+		var err error
+		storage, created, err = h.sessions.GetOrCreate(sessionID, mode)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		if created && mode == collector.CaptureModeSession {
+			h.setSessionCookie(w, sessionID)
+		}
+	}
+
 	var selectedEvent *collector.Event
-	if idStr != "" {
+	idStr := r.URL.Query().Get("id")
+	if idStr != "" && storage != nil {
 		eventID, err := uuid.FromString(idStr)
 		if err != nil {
 			http.Error(w, "Invalid event id", http.StatusBadRequest)
 			return
 		}
-		event, exists := h.eventCollector.GetEvent(eventID)
+		event, exists := storage.GetEvent(eventID)
 		if !exists {
-			http.Redirect(w, r, fmt.Sprintf("%s/", h.pathPrefix), http.StatusTemporaryRedirect) // TODO Build correct URL
+			http.Redirect(w, r, fmt.Sprintf("%s/s/%s/", h.pathPrefix, sessionID), http.StatusTemporaryRedirect)
 			return
-		} else {
-			selectedEvent = event
+		}
+		selectedEvent = event
+	}
+
+	var recentEvents []*collector.Event
+	captureActive := false
+	captureMode := modeParam
+	if storage != nil {
+		h.sessions.UpdateActivity(sessionID)
+		recentEvents = h.loadRecentEvents(storage)
+		captureActive = true
+		captureMode = storage.CaptureMode().String()
+		if storage.CaptureMode() == collector.CaptureModeSession {
+			// Re-set session cookie for session mode (cleared on beforeunload)
+			h.setSessionCookie(w, sessionID)
 		}
 	}
 
-	recentEvents := h.loadRecentEvents()
-
+	r = h.withHandlerOptions(r, sessionID.String(), captureActive, captureMode)
 	templ.Handler(
 		views.Dashboard(views.DashboardProps{
 			SelectedEvent: selectedEvent,
 			Events:        recentEvents,
+			CaptureActive: captureActive,
+			CaptureMode:   captureMode,
 		}),
 	).ServeHTTP(w, r)
 }
 
 func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
-	recentEvents := h.loadRecentEvents()
+	sessionID, _ := h.getSessionID(r)
+	storage := h.sessions.Get(sessionID)
+
+	var recentEvents []*collector.Event
+	captureActive := false
+	captureMode := "session"
+	if storage != nil {
+		recentEvents = h.loadRecentEvents(storage)
+		captureActive = true
+		captureMode = storage.CaptureMode().String()
+	}
+
+	r = h.withHandlerOptions(r, sessionID.String(), captureActive, captureMode)
 
 	selectedStr := r.URL.Query().Get("selected")
 	var selectedEventID *uuid.UUID
@@ -122,35 +264,53 @@ func (h *Handler) getEventList(w http.ResponseWriter, r *http.Request) {
 		views.EventList(views.EventListProps{
 			Events:          recentEvents,
 			SelectedEventID: selectedEventID,
+			CaptureActive:   captureActive,
+			CaptureMode:     captureMode,
 		}),
 	).ServeHTTP(w, r)
 }
 
 func (h *Handler) clearEventList(w http.ResponseWriter, r *http.Request) {
-	h.eventCollector.Clear()
-
-	// Check if there's an id parameter in the current URL that needs to be removed to unselect an event
-	currentURL, _ := url.Parse(r.Header.Get("HX-Current-URL"))
-	if currentURL != nil && currentURL.Query().Get("id") != "" {
-		// Build URL preserving all query parameters except 'id'
-		query := r.URL.Query()
-		query.Del("id")
-
-		redirectURL := fmt.Sprintf("%s/", h.pathPrefix)
-		if len(query) > 0 {
-			redirectURL += "?" + query.Encode()
-		}
-
-		// Use HTMX header to update the URL client-side without the id parameter
-		w.Header().Set("HX-Push-Url", redirectURL)
+	sessionID, _ := h.getSessionID(r)
+	storage := h.sessions.Get(sessionID)
+	if storage != nil {
+		storage.Clear()
 	}
 
+	// Keep capture active if storage exists
+	captureActive := storage != nil
+	captureMode := "session"
+	if storage != nil {
+		captureMode = storage.CaptureMode().String()
+	}
+
+	r = h.withHandlerOptions(r, sessionID.String(), captureActive, captureMode)
+	opts := views.HandlerOptions{
+		PathPrefix:    h.pathPrefix,
+		SessionID:     sessionID.String(),
+		CaptureActive: captureActive,
+		CaptureMode:   captureMode,
+	}
+
+	// Update URL to remove id parameter but preserve capture state
+	w.Header().Set("HX-Push-Url", opts.BuildEventDetailURL(""))
+
 	templ.Handler(
-		views.SplitLayout(views.EventList(views.EventListProps{}), views.EventDetailContainer(nil)),
+		views.SplitLayout(views.EventList(views.EventListProps{CaptureActive: captureActive, CaptureMode: captureMode}), views.EventDetailContainer(nil)),
 	).ServeHTTP(w, r)
 }
 
 func (h *Handler) getEventDetails(w http.ResponseWriter, r *http.Request) {
+	sessionID, _ := h.getSessionID(r)
+	storage := h.sessions.Get(sessionID)
+	if storage == nil {
+		http.Error(w, "No capture session active", http.StatusNotFound)
+		return
+	}
+
+	captureMode := storage.CaptureMode().String()
+	r = h.withHandlerOptions(r, sessionID.String(), true, captureMode)
+
 	idStr := r.PathValue("eventId")
 	eventID, err := uuid.FromString(idStr)
 	if err != nil {
@@ -158,7 +318,7 @@ func (h *Handler) getEventDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event, exists := h.eventCollector.GetEvent(eventID)
+	event, exists := storage.GetEvent(eventID)
 	if !exists {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
@@ -171,6 +331,39 @@ func (h *Handler) getEventDetails(w http.ResponseWriter, r *http.Request) {
 
 // getEventsSSE handles SSE connections for real-time log updates
 func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
+	sessionID, hasSession := h.getSessionID(r)
+	if !hasSession {
+		http.Error(w, "Invalid session ID", http.StatusBadRequest)
+		return
+	}
+
+	storage := h.sessions.Get(sessionID)
+	if storage == nil {
+		// Session was cleaned up - recreate it (fresh and empty)
+		// Use mode from query param, default to session mode
+		mode := collector.ParseCaptureModeOrDefault(r.URL.Query().Get("mode"))
+
+		var created bool
+		var err error
+		storage, created, err = h.sessions.GetOrCreate(sessionID, mode)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+
+		// Set cookie if session mode and newly created
+		if created && mode == collector.CaptureModeSession {
+			h.setSessionCookie(w, sessionID)
+		}
+	}
+
+	// Set handler options in context for template rendering
+	captureMode := storage.CaptureMode().String()
+	r = h.withHandlerOptions(r, sessionID.String(), true, captureMode)
+
+	// Update activity for this session
+	h.sessions.UpdateActivity(sessionID)
+
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -181,34 +374,42 @@ func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	// Monitor for client disconnect
-	go func() {
-		<-ctx.Done()
-		// Context was canceled, connection is closed
-	}()
-
-	// Create a notification channel for new logs
-	eventCh := h.eventCollector.Subscribe(ctx)
+	// Create a notification channel for new events from the user's storage
+	eventCh := storage.Subscribe(ctx)
 
 	// Send a keep-alive message initially to ensure the connection is established
 	fmt.Fprintf(w, "event: keepalive\ndata: connected\n\n")
 	w.(http.Flusher).Flush()
 
-	// Listen for new logs and send them as SSE events
+	// Create a ticker to keep the session alive and send keepalive messages
+	// This prevents idle timeout while SSE connection is open
+	keepaliveTicker := time.NewTicker(h.sessions.IdleTimeout() / 2)
+	defer keepaliveTicker.Stop()
+
+	// Listen for new events and send them as SSE events
 	for {
 		select {
 		case <-ctx.Done():
 			return // Client disconnected
+		case <-keepaliveTicker.C:
+			// Keep session alive while SSE is connected
+			h.sessions.UpdateActivity(sessionID)
+			// Send keepalive to client
+			fmt.Fprintf(w, "event: keepalive\ndata: ping\n\n")
+			w.(http.Flusher).Flush()
 		case event, ok := <-eventCh:
 			if !ok {
 				return // Channel closed
 			}
 
+			// Update activity on each event
+			h.sessions.UpdateActivity(sessionID)
+
 			// Send as SSE event
 			fmt.Fprintf(w, "event: new-event\n")
 			fmt.Fprintf(w, "data: ")
 
-			views.EventListItem(&event, nil).Render(ctx, w)
+			views.EventListItem(event, nil).Render(ctx, w)
 
 			fmt.Fprintf(w, "\n\n")
 
@@ -217,8 +418,8 @@ func (h *Handler) getEventsSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) loadRecentEvents() []*collector.Event {
-	recentEvents := h.eventCollector.GetEvents(h.truncateAfter)
+func (h *Handler) loadRecentEvents(storage *collector.CaptureStorage) []*collector.Event {
+	recentEvents := storage.GetEvents(h.truncateAfter)
 	slices.Reverse(recentEvents)
 
 	return recentEvents
@@ -226,6 +427,13 @@ func (h *Handler) loadRecentEvents() []*collector.Event {
 
 // downloadRequestBody handles downloading the request body for an event
 func (h *Handler) downloadRequestBody(w http.ResponseWriter, r *http.Request) {
+	sessionID, _ := h.getSessionID(r)
+	storage := h.sessions.Get(sessionID)
+	if storage == nil {
+		http.Error(w, "No capture session active", http.StatusNotFound)
+		return
+	}
+
 	idStr := r.PathValue("eventId")
 	eventID, err := uuid.FromString(idStr)
 	if err != nil {
@@ -233,7 +441,7 @@ func (h *Handler) downloadRequestBody(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event, exists := h.eventCollector.GetEvent(eventID)
+	event, exists := storage.GetEvent(eventID)
 	if !exists {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
@@ -274,6 +482,13 @@ func (h *Handler) downloadRequestBody(w http.ResponseWriter, r *http.Request) {
 
 // downloadResponseBody handles downloading the response body for an event
 func (h *Handler) downloadResponseBody(w http.ResponseWriter, r *http.Request) {
+	sessionID, _ := h.getSessionID(r)
+	storage := h.sessions.Get(sessionID)
+	if storage == nil {
+		http.Error(w, "No capture session active", http.StatusNotFound)
+		return
+	}
+
 	idStr := r.PathValue("eventId")
 	eventID, err := uuid.FromString(idStr)
 	if err != nil {
@@ -281,7 +496,7 @@ func (h *Handler) downloadResponseBody(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event, exists := h.eventCollector.GetEvent(eventID)
+	event, exists := storage.GetEvent(eventID)
 	if !exists {
 		http.Error(w, "Event not found", http.StatusNotFound)
 		return
@@ -318,4 +533,211 @@ func (h *Handler) downloadResponseBody(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=response-body-%s", eventID))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 	w.Write(body)
+}
+
+// Capture control endpoints
+
+// CaptureStatusResponse is the response for GET /capture/status
+type CaptureStatusResponse struct {
+	Active bool   `json:"active"`
+	Mode   string `json:"mode,omitempty"` // "session" or "global"
+}
+
+// captureStart handles POST /capture/start - creates or resumes a capture session
+func (h *Handler) captureStart(w http.ResponseWriter, r *http.Request) {
+	sessionID, ok := h.getSessionID(r)
+	if !ok {
+		http.Error(w, "Invalid session ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse mode from request body (default to session mode)
+	mode := collector.ParseCaptureModeOrDefault(r.FormValue("mode"))
+
+	// Get or create session
+	storage, created, err := h.sessions.GetOrCreate(sessionID, mode)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	if !created {
+		// Session exists, resume capturing with potentially new mode
+		oldMode := storage.CaptureMode()
+		storage.SetCapturing(true)
+		storage.SetCaptureMode(mode)
+
+		// Handle cookie based on mode change
+		if mode == collector.CaptureModeSession && oldMode != collector.CaptureModeSession {
+			h.setSessionCookie(w, sessionID)
+		} else if mode == collector.CaptureModeGlobal && oldMode == collector.CaptureModeSession {
+			h.clearSessionCookie(w, sessionID)
+		}
+	} else {
+		// New session created - set cookie if session mode
+		if mode == collector.CaptureModeSession {
+			h.setSessionCookie(w, sessionID)
+		}
+	}
+
+	h.respondWithCaptureState(w, r, sessionID, true, mode)
+}
+
+// captureStop handles POST /capture/stop - pauses capture but keeps session and events
+func (h *Handler) captureStop(w http.ResponseWriter, r *http.Request) {
+	sessionID, hasSession := h.getSessionID(r)
+	if !hasSession {
+		h.respondWithCaptureState(w, r, sessionID, false, collector.CaptureModeSession)
+		return
+	}
+
+	storage := h.sessions.Get(sessionID)
+	if storage == nil {
+		h.respondWithCaptureState(w, r, sessionID, false, collector.CaptureModeSession)
+		return
+	}
+
+	// Pause capturing - keep storage, session, and events intact
+	storage.SetCapturing(false)
+
+	// Keep session cookie so user can resume
+	// Respond with active=false but preserve the mode
+	h.respondWithCaptureState(w, r, sessionID, false, storage.CaptureMode())
+}
+
+// setCaptureMode handles POST /capture/mode - changes capture mode
+func (h *Handler) setCaptureMode(w http.ResponseWriter, r *http.Request) {
+	sessionID, hasSession := h.getSessionID(r)
+	if !hasSession {
+		http.Error(w, "Invalid session ID", http.StatusBadRequest)
+		return
+	}
+
+	storage := h.sessions.Get(sessionID)
+	if storage == nil {
+		http.Error(w, "No capture session active", http.StatusNotFound)
+		return
+	}
+
+	// Parse mode from request
+	mode, ok := collector.ParseCaptureMode(r.FormValue("mode"))
+	if !ok {
+		http.Error(w, "Invalid mode, must be 'session' or 'global'", http.StatusBadRequest)
+		return
+	}
+
+	oldMode := storage.CaptureMode()
+	storage.SetCaptureMode(mode)
+
+	// Handle cookie based on mode change
+	if mode == collector.CaptureModeSession && oldMode != collector.CaptureModeSession {
+		// Switching to session mode: set cookie
+		h.setSessionCookie(w, sessionID)
+	} else if mode == collector.CaptureModeGlobal && oldMode == collector.CaptureModeSession {
+		// Switching from session to global: clear cookie
+		h.clearSessionCookie(w, sessionID)
+	}
+
+	h.respondWithCaptureState(w, r, sessionID, true, mode)
+}
+
+// captureStatus handles GET /capture/status - returns current capture state
+func (h *Handler) captureStatus(w http.ResponseWriter, r *http.Request) {
+	sessionID, hasSession := h.getSessionID(r)
+	if !hasSession {
+		h.respondWithCaptureState(w, r, sessionID, false, collector.CaptureModeSession)
+		return
+	}
+
+	storage := h.sessions.Get(sessionID)
+	if storage == nil {
+		h.respondWithCaptureState(w, r, sessionID, false, collector.CaptureModeSession)
+		return
+	}
+
+	h.respondWithCaptureState(w, r, sessionID, storage.IsCapturing(), storage.CaptureMode())
+}
+
+// respondWithCaptureState responds with capture state as HTML for HTMX or JSON for API
+func (h *Handler) respondWithCaptureState(w http.ResponseWriter, r *http.Request, sessionID uuid.UUID, active bool, mode collector.CaptureMode) {
+	modeStr := mode.String()
+
+	// Check if this is an HTMX request
+	if r.Header.Get("HX-Request") == "true" {
+		r = h.withHandlerOptions(r, sessionID.String(), active, modeStr)
+		opts := views.HandlerOptions{
+			PathPrefix:    h.pathPrefix,
+			SessionID:     sessionID.String(),
+			CaptureActive: active,
+			CaptureMode:   modeStr,
+		}
+
+		// Trigger event list refresh via HTMX response header
+		w.Header().Set("HX-Trigger", "capture-state-changed")
+
+		// Update browser URL to reflect capture state
+		w.Header().Set("HX-Push-Url", opts.BuildEventDetailURL(""))
+
+		templ.Handler(
+			views.CaptureControls(views.CaptureState{
+				Active: active,
+				Mode:   modeStr,
+			}),
+		).ServeHTTP(w, r)
+		return
+	}
+
+	// Return JSON for API compatibility
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(CaptureStatusResponse{Active: active, Mode: modeStr})
+}
+
+// captureCleanup handles POST /capture/cleanup - called via sendBeacon on tab close/reload
+func (h *Handler) captureCleanup(w http.ResponseWriter, r *http.Request) {
+	sessionID, ok := h.getSessionID(r)
+	if !ok {
+		// Silent success for beacon - no session to clean up
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Only clear session cookie - don't delete storage.
+	// Storage will be cleaned up by idle timeout or explicit stop.
+	// Cookie will be re-set on page load if session is still active.
+	h.clearSessionCookie(w, sessionID)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// StatsResponse is the response for GET /stats
+type StatsResponse struct {
+	MemoryBytes     uint64 `json:"memoryBytes"`
+	MemoryFormatted string `json:"memoryFormatted"`
+	SessionCount    int    `json:"sessionCount"`
+	MaxSessions     int    `json:"maxSessions,omitempty"`
+	EventCount      int    `json:"eventCount"`
+}
+
+func (h *Handler) getStats(w http.ResponseWriter, r *http.Request) {
+	stats := h.eventAggregator.CalculateStats()
+
+	response := StatsResponse{
+		MemoryBytes:     stats.TotalMemory,
+		MemoryFormatted: views.FormatBytes(stats.TotalMemory),
+		SessionCount:    h.sessions.SessionCount(),
+		MaxSessions:     h.sessions.MaxSessions(),
+		EventCount:      stats.EventCount,
+	}
+
+	// Check if HTMX request
+	if r.Header.Get("HX-Request") == "true" {
+		templ.Handler(
+			views.UsagePanelContent(response.MemoryFormatted, response.SessionCount, response.MaxSessions),
+		).ServeHTTP(w, r)
+		return
+	}
+
+	// JSON response for API
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

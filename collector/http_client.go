@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -25,8 +24,8 @@ type HTTPClientOptions struct {
 	// NotifierOptions are options for notification about new requests
 	NotifierOptions *NotifierOptions
 
-	// EventCollector is an optional event collector for collecting requests as grouped events
-	EventCollector *EventCollector
+	// EventAggregator is the aggregator for collecting requests as grouped events
+	EventAggregator *EventAggregator
 }
 
 type HTTPClientRequestTransformer func(HTTPClientRequest) HTTPClientRequest
@@ -42,37 +41,28 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 
 // HTTPClientCollector collects outgoing HTTP requests
 type HTTPClientCollector struct {
-	buffer *RingBuffer[HTTPClientRequest]
-
-	options        HTTPClientOptions
-	notifier       *Notifier[HTTPClientRequest]
-	eventCollector *EventCollector
-
-	mu sync.RWMutex
+	options         HTTPClientOptions
+	notifier        *Notifier[HTTPClientRequest]
+	eventAggregator *EventAggregator
 }
 
 // NewHTTPClientCollector creates a new collector for outgoing HTTP requests
-func NewHTTPClientCollector(capacity uint64) *HTTPClientCollector {
-	return NewHTTPClientCollectorWithOptions(capacity, DefaultHTTPClientOptions())
+func NewHTTPClientCollector() *HTTPClientCollector {
+	return NewHTTPClientCollectorWithOptions(DefaultHTTPClientOptions())
 }
 
 // NewHTTPClientCollectorWithOptions creates a new collector with specified options
-func NewHTTPClientCollectorWithOptions(capacity uint64, options HTTPClientOptions) *HTTPClientCollector {
+func NewHTTPClientCollectorWithOptions(options HTTPClientOptions) *HTTPClientCollector {
 	notifierOptions := DefaultNotifierOptions()
 	if options.NotifierOptions != nil {
 		notifierOptions = *options.NotifierOptions
 	}
 
-	collector := &HTTPClientCollector{
-		options:        options,
-		notifier:       NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
-		eventCollector: options.EventCollector,
+	return &HTTPClientCollector{
+		options:         options,
+		notifier:        NewNotifierWithOptions[HTTPClientRequest](notifierOptions),
+		eventAggregator: options.EventAggregator,
 	}
-	if capacity > 0 {
-		collector.buffer = NewRingBuffer[HTTPClientRequest](capacity)
-	}
-
-	return collector
 }
 
 // Transport returns an http.RoundTripper that captures request/response data
@@ -87,31 +77,19 @@ func (c *HTTPClientCollector) Transport(next http.RoundTripper) http.RoundTrippe
 	}
 }
 
-// GetRequests returns the most recent n HTTP requests
-func (c *HTTPClientCollector) GetRequests(n uint64) []HTTPClientRequest {
-	if c.buffer == nil {
-		return nil
-	}
-	return c.buffer.GetRecords(n)
-}
-
-// Subscribe returns a channel that receives notifications of new log records
+// Subscribe returns a channel that receives notifications of new HTTP requests
 func (c *HTTPClientCollector) Subscribe(ctx context.Context) <-chan HTTPClientRequest {
 	return c.notifier.Subscribe(ctx)
 }
 
-// Add adds an HTTP request to the collector
+// Add adds an HTTP request to the collector and notifies subscribers
 func (c *HTTPClientCollector) Add(req HTTPClientRequest) {
-	if c.buffer != nil {
-		c.buffer.Add(req)
-	}
 	c.notifier.Notify(req)
 }
 
 // Close releases resources used by the collector
 func (c *HTTPClientCollector) Close() {
 	c.notifier.Close()
-	c.buffer = nil
 }
 
 // httpClientTransport is an http.RoundTripper that captures HTTP request/response data
@@ -121,6 +99,21 @@ type httpClientTransport struct {
 }
 
 func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx := req.Context()
+
+	// Check if we should capture this request (using EventAggregator)
+	// Default to true for backward compatibility when neither aggregator nor collector is set
+	shouldCapture := true
+	if t.collector.eventAggregator != nil {
+		shouldCapture = t.collector.eventAggregator.ShouldCapture(ctx)
+	}
+	// Note: EventCollector (deprecated) is always-capture, so no change needed
+
+	// Early bailout if not capturing - just pass through
+	if !shouldCapture {
+		return t.next.RoundTrip(req)
+	}
+
 	// Generate a unique ID for this request
 	id := generateID()
 
@@ -139,7 +132,7 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 	// Track the original request body size
 	if req.ContentLength > 0 {
-		httpReq.RequestSize = req.ContentLength
+		httpReq.RequestSize = uint64(req.ContentLength)
 	}
 
 	// Capture request body if present and configured to do so
@@ -154,10 +147,11 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		req.Body = body
 	}
 
-	if t.collector.eventCollector != nil {
-		newCtx := t.collector.eventCollector.StartEvent(req.Context())
+	// Start event tracking with EventAggregator
+	if t.collector.eventAggregator != nil {
+		newCtx := t.collector.eventAggregator.StartEvent(ctx)
 		defer func(req *HTTPClientRequest) {
-			t.collector.eventCollector.EndEvent(newCtx, *req)
+			t.collector.eventAggregator.EndEvent(newCtx, *req)
 		}(&httpReq)
 
 		req = req.WithContext(newCtx)
@@ -177,7 +171,7 @@ func (t *httpClientTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 		// Calculate content length from header if available
 		if contentLength := resp.Header.Get("Content-Length"); contentLength != "" {
-			if length, err := strconv.ParseInt(contentLength, 10, 64); err == nil {
+			if length, err := strconv.ParseUint(contentLength, 10, 64); err == nil {
 				httpReq.ResponseSize = length
 			}
 		}

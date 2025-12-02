@@ -142,12 +142,12 @@ func (b *Body) Bytes() []byte {
 }
 
 // Size returns the captured size of the body
-func (b *Body) Size() int64 {
+func (b *Body) Size() uint64 {
 	if b == nil || b.buffer == nil {
 		return 0
 	}
 
-	return int64(b.buffer.Len())
+	return uint64(b.buffer.Len())
 }
 
 // IsTruncated returns true if the body was truncated

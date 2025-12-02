@@ -9,26 +9,15 @@ import (
 )
 
 type LogCollector struct {
-	buffer         *RingBuffer[slog.Record]
-	notifier       *Notifier[slog.Record]
-	eventCollector *EventCollector
+	notifier        *Notifier[slog.Record]
+	eventAggregator *EventAggregator
 }
 
 func (c *LogCollector) Collect(ctx context.Context, record slog.Record) {
-	if c.buffer != nil {
-		c.buffer.Add(record)
-	}
 	c.notifier.Notify(record)
-	if c.eventCollector != nil {
-		c.eventCollector.CollectEvent(ctx, record)
+	if c.eventAggregator != nil {
+		c.eventAggregator.CollectEvent(ctx, record)
 	}
-}
-
-func (c *LogCollector) Tail(n int) []slog.Record {
-	if c.buffer == nil {
-		return nil
-	}
-	return c.buffer.GetRecords(uint64(n))
 }
 
 // Subscribe returns a channel that receives notifications of new log records
@@ -36,8 +25,8 @@ func (c *LogCollector) Subscribe(ctx context.Context) <-chan slog.Record {
 	return c.notifier.Subscribe(ctx)
 }
 
-func NewLogCollector(capacity uint64) *LogCollector {
-	return NewLogCollectorWithOptions(capacity, DefaultLogOptions())
+func NewLogCollector() *LogCollector {
+	return NewLogCollectorWithOptions(DefaultLogOptions())
 }
 
 func DefaultLogOptions() LogOptions {
@@ -48,31 +37,25 @@ type LogOptions struct {
 	// NotifierOptions are options for notification about new logs
 	NotifierOptions *NotifierOptions
 
-	// EventCollector is an optional event collector for collecting logs as grouped events
-	EventCollector *EventCollector
+	// EventAggregator is the aggregator for collecting logs as grouped events
+	EventAggregator *EventAggregator
 }
 
-func NewLogCollectorWithOptions(capacity uint64, options LogOptions) *LogCollector {
+func NewLogCollectorWithOptions(options LogOptions) *LogCollector {
 	notifierOptions := DefaultNotifierOptions()
 	if options.NotifierOptions != nil {
 		notifierOptions = *options.NotifierOptions
 	}
 
-	collector := &LogCollector{
-		notifier:       NewNotifierWithOptions[slog.Record](notifierOptions),
-		eventCollector: options.EventCollector,
+	return &LogCollector{
+		notifier:        NewNotifierWithOptions[slog.Record](notifierOptions),
+		eventAggregator: options.EventAggregator,
 	}
-	if capacity > 0 {
-		collector.buffer = NewRingBuffer[slog.Record](capacity)
-	}
-
-	return collector
 }
 
 // Close releases resources used by the collector
 func (c *LogCollector) Close() {
 	c.notifier.Close()
-	c.buffer = nil
 }
 
 type CollectSlogLogsOptions struct {

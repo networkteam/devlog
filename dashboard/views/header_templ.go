@@ -8,9 +8,17 @@ package views
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
-func Header() templ.Component {
+type CaptureState struct {
+	Active bool
+	Mode   string // "session" or "global"
+}
+
+func Header(capture CaptureState) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -31,20 +39,37 @@ func Header() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<header class=\"border-b border-neutral-300 p-3 md:p-4\"><div class=\"mb-3 flex justify-between items-center\"><h1 class=\"text-xl font-bold\">devlog</h1></div><div class=\"flex flex-col gap-3 sm:flex-row sm:items-center\"><div class=\"relative flex-1 flex justify-between\"><input class=\"h-10 w-full max-w-sm rounded-md border border-neutral-200 px-3 py-2 text-base placeholder:text-neutral-500 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-black disabled:cursor-not-allowed disabled:opacity-50 md:text-sm\" placeholder=\"Search...\"> ")
+		opts := MustGetHandlerOptions(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<header class=\"bg-header-bg border-b border-header-border p-3 md:p-4\"><div class=\"flex flex-wrap items-center gap-3 sm:gap-6\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = devlogLogo().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = CaptureControls(capture).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"flex flex-1 items-center justify-end gap-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = UsagePanel().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 = []any{buttonClasses(
 			ButtonProps{
-				Variant: ButtonVariantOutline,
+				Variant: ButtonVariantOutlineDark,
 				Size:    ButtonSizeIcon,
 			})}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<button class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<button class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -57,20 +82,20 @@ func Header() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" title=\"Clear list\" hx-delete=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" title=\"Clear list\" hx-delete=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/event-list", MustGetHandlerOptions(ctx).PathPrefix))
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/event-list", opts.PathPrefix, opts.SessionID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 24, Col: 98}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 28, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-target=\"#split-layout\" hx-swap=\"outerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" hx-target=\"#split-layout\" hx-swap=\"outerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -78,7 +103,439 @@ func Header() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</button></div></div></header>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</button></div></div></header>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func CaptureControls(capture CaptureState) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var5 == nil {
+			templ_7745c5c3_Var5 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		opts := MustGetHandlerOptions(ctx)
+		mode := capture.Mode
+		if mode == "" {
+			mode = "session"
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div id=\"capture-controls\" class=\"flex items-center gap-3 sm:gap-6\" data-mode=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(mode)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 45, Col: 85}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><div class=\"flex items-center gap-2\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = iconRecord().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return nil
+		})
+		templ_7745c5c3_Err = TapeButton(TapeButtonProps{Pressed: capture.Active, Color: TapeButtonColorRed}, templ.Attributes{
+			"title":                "Start capture",
+			"hx-post":              fmt.Sprintf("%s/s/%s/capture/start", opts.PathPrefix, opts.SessionID),
+			"hx-vals":              "js:{mode: document.getElementById('capture-controls').dataset.mode}",
+			"hx-on::after-request": "if(event.detail.successful) htmx.trigger('#event-list-container', 'capture-state-changed')",
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Var8 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = iconStop().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return nil
+		})
+		templ_7745c5c3_Err = TapeButton(TapeButtonProps{Pressed: !capture.Active, Color: TapeButtonColorGray}, templ.Attributes{
+			"title":                "Stop capture",
+			"hx-post":              fmt.Sprintf("%s/s/%s/capture/stop", opts.PathPrefix, opts.SessionID),
+			"hx-on::after-request": "if(event.detail.successful) htmx.trigger('#event-list-container', 'capture-state-changed')",
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = CaptureMode(mode, capture.Active).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// TapeButton renders a cassette-player style button (pressed/released states)
+func TapeButton(props TapeButtonProps, attrs templ.Attributes) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var9 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var9 == nil {
+			templ_7745c5c3_Var9 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		var templ_7745c5c3_Var10 = []any{tapeButtonClasses(props)}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var10...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<button class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var11 string
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var10).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if props.Pressed {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, " disabled")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, " hx-target=\"#capture-controls\" hx-swap=\"outerHTML\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, attrs)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, ">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templ_7745c5c3_Var9.Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</button>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+type TapeButtonColor string
+
+const (
+	TapeButtonColorRed  TapeButtonColor = "red"
+	TapeButtonColorGray TapeButtonColor = "gray"
+)
+
+type TapeButtonProps struct {
+	Pressed bool
+	Color   TapeButtonColor
+}
+
+func tapeButtonClasses(props TapeButtonProps) string {
+	var classes []string
+
+	// Base classes
+	classes = append(classes, "cursor-pointer inline-flex items-center justify-center h-10 w-10 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2")
+
+	// Color and state classes - optimized for dark header background
+	switch props.Color {
+	case TapeButtonColorRed:
+		if props.Pressed {
+			classes = append(classes, "bg-red-800 border-red-600 text-red-400 glow-red btn-pressed")
+		} else {
+			classes = append(classes, "bg-red-950/50 border-red-800 text-red-500 glow-red hover:bg-red-900/50 hover:text-red-400")
+		}
+	default: // TapeButtonColorGray
+		if props.Pressed {
+			classes = append(classes, "bg-neutral-700 border-neutral-500 text-neutral-300 glow-gray btn-pressed")
+		} else {
+			classes = append(classes, "bg-neutral-800/50 border-neutral-600 text-neutral-400 glow-gray hover:bg-neutral-700/50 hover:text-neutral-300")
+		}
+	}
+
+	return strings.Join(classes, " ")
+}
+
+func CaptureMode(mode string, capturing bool) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var12 == nil {
+			templ_7745c5c3_Var12 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		opts := MustGetHandlerOptions(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"inline-flex rounded-md border border-header-border bg-header-bg/50 text-sm overflow-hidden\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if capturing {
+			var templ_7745c5c3_Var13 = []any{"px-3 py-2 cursor-pointer transition-colors", templ.KV("bg-devlog-cyan/20 text-devlog-cyan", mode == "session"), templ.KV("text-neutral-400 hover:bg-white/10 hover:text-white", mode != "session")}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var13...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<button type=\"button\" class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var14 string
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var13).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" hx-post=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var15 string
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/capture/mode?mode=session", opts.PathPrefix, opts.SessionID))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 124, Col: 95}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" hx-target=\"#capture-controls\" hx-swap=\"outerHTML\">Session</button> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var16 = []any{"px-3 py-2 cursor-pointer transition-colors border-l border-header-border", templ.KV("bg-devlog-cyan/20 text-devlog-cyan", mode == "global"), templ.KV("text-neutral-400 hover:bg-white/10 hover:text-white", mode != "global")}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var16...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<button type=\"button\" class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var17 string
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var16).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" hx-post=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var18 string
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s/s/%s/capture/mode?mode=global", opts.PathPrefix, opts.SessionID))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 133, Col: 94}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\" hx-target=\"#capture-controls\" hx-swap=\"outerHTML\">Global</button>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			var templ_7745c5c3_Var19 = []any{"px-3 py-2 cursor-pointer transition-colors", templ.KV("bg-devlog-cyan/20 text-devlog-cyan", mode == "session"), templ.KV("text-neutral-400 hover:bg-white/10 hover:text-white", mode != "session")}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var19...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<button type=\"button\" class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var20 string
+			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var19).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\" onclick=\"document.getElementById(&#39;capture-controls&#39;).dataset.mode=&#39;session&#39;; this.classList.add(&#39;bg-devlog-cyan/20&#39;,&#39;text-devlog-cyan&#39;); this.classList.remove(&#39;text-neutral-400&#39;,&#39;hover:bg-white/10&#39;,&#39;hover:text-white&#39;); this.nextElementSibling.classList.remove(&#39;bg-devlog-cyan/20&#39;,&#39;text-devlog-cyan&#39;); this.nextElementSibling.classList.add(&#39;text-neutral-400&#39;,&#39;hover:bg-white/10&#39;,&#39;hover:text-white&#39;);\">Session</button> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var21 = []any{"px-3 py-2 cursor-pointer transition-colors border-l border-header-border", templ.KV("bg-devlog-cyan/20 text-devlog-cyan", mode == "global"), templ.KV("text-neutral-400 hover:bg-white/10 hover:text-white", mode != "global")}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var21...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<button type=\"button\" class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var22 string
+			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var21).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `dashboard/views/header.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" onclick=\"document.getElementById(&#39;capture-controls&#39;).dataset.mode=&#39;global&#39;; this.classList.add(&#39;bg-devlog-cyan/20&#39;,&#39;text-devlog-cyan&#39;); this.classList.remove(&#39;text-neutral-400&#39;,&#39;hover:bg-white/10&#39;,&#39;hover:text-white&#39;); this.previousElementSibling.classList.remove(&#39;bg-devlog-cyan/20&#39;,&#39;text-devlog-cyan&#39;); this.previousElementSibling.classList.add(&#39;text-neutral-400&#39;,&#39;hover:bg-white/10&#39;,&#39;hover:text-white&#39;);\">Global</button>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func iconRecord() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var23 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var23 == nil {
+			templ_7745c5c3_Var23 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" height=\"18\" width=\"18\"><circle fill=\"currentColor\" cx=\"12\" cy=\"12\" r=\"8\"></circle></svg>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func iconStop() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var24 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var24 == nil {
+			templ_7745c5c3_Var24 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" height=\"20\" width=\"20\"><rect fill=\"currentColor\" x=\"6\" y=\"6\" width=\"12\" height=\"12\"></rect></svg>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -102,12 +559,41 @@ func iconDeleteRow() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var5 == nil {
-			templ_7745c5c3_Var5 = templ.NopComponent
+		templ_7745c5c3_Var25 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var25 == nil {
+			templ_7745c5c3_Var25 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" id=\"Delete-Row--Streamline-Sharp\" height=\"24\" width=\"24\"><desc>Delete Row Streamline Icon: https://streamlinehq.com</desc> <g id=\"delete-row\"><path id=\"Rectangle 19\" stroke=\"#000000\" d=\"M12 15H1L1 1l22 0v11\" stroke-width=\"2\"></path> <path id=\"Rectangle 20\" stroke=\"#000000\" d=\"M23 8 1 8\" stroke-width=\"2\"></path> <path id=\"Vector 1144\" stroke=\"#000000\" d=\"m23 15 -8 8\" stroke-width=\"2\"></path> <path id=\"Vector 1145\" stroke=\"#000000\" d=\"m23 23 -8 -8\" stroke-width=\"2\"></path></g></svg>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\" id=\"Delete-Row--Streamline-Sharp\" height=\"24\" width=\"24\"><desc>Delete Row Streamline Icon: https://streamlinehq.com</desc> <g id=\"delete-row\"><path id=\"Rectangle 19\" stroke=\"currentColor\" d=\"M12 15H1L1 1l22 0v11\" stroke-width=\"2\"></path> <path id=\"Rectangle 20\" stroke=\"currentColor\" d=\"M23 8 1 8\" stroke-width=\"2\"></path> <path id=\"Vector 1144\" stroke=\"currentColor\" d=\"m23 15 -8 8\" stroke-width=\"2\"></path> <path id=\"Vector 1145\" stroke=\"currentColor\" d=\"m23 23 -8 -8\" stroke-width=\"2\"></path></g></svg>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func devlogLogo() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var26 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var26 == nil {
+			templ_7745c5c3_Var26 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<svg width=\"120\" height=\"35\" viewBox=\"0 0 523 153\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><g filter=\"url(#filter0_d_logo)\"><mask id=\"path-logo-inside\" fill=\"white\"><path d=\"M129.75 74.9111L0 149.822V98.2441L14 90.1611V125.574L101.751 74.9111L14 24.248V57.8291L0 65.9121V0L129.75 74.9111Z\"></path></mask> <path d=\"M129.75 74.9111L0 149.822V98.2441L14 90.1611V125.574L101.751 74.9111L14 24.248V57.8291L0 65.9121V0L129.75 74.9111Z\" fill=\"#04F3F8\"></path> <path d=\"M129.75 74.9111L130.5 76.2102L132.75 74.9111L130.5 73.6121L129.75 74.9111ZM0 149.822H-1.5V152.42L0.75 151.121L0 149.822ZM0 98.2441L-0.750007 96.9451L-1.5 97.3781V98.2441H0ZM14 90.1611H15.5V87.563L13.25 88.8621L14 90.1611ZM14 125.574H12.5V128.172L14.75 126.873L14 125.574ZM101.751 74.9111L102.501 76.2102L104.751 74.9111L102.501 73.6121L101.751 74.9111ZM14 24.248L14.75 22.949L12.5 21.65V24.248H14ZM14 57.8291L14.75 59.1281L15.5 58.6951V57.8291H14ZM0 65.9121H-1.5V68.5102L0.750007 67.2111L0 65.9121ZM0 0L0.75 -1.29904L-1.5 -2.59808L-1.5 0H0ZM129.75 74.9111L129 73.6121L-0.75 148.523L0 149.822L0.75 151.121L130.5 76.2102L129.75 74.9111ZM0 149.822H1.5V98.2441H0H-1.5V149.822H0ZM0 98.2441L0.750007 99.5432L14.75 91.4602L14 90.1611L13.25 88.8621L-0.750007 96.9451L0 98.2441ZM14 90.1611H12.5V125.574H14H15.5V90.1611H14ZM14 125.574L14.75 126.873L102.501 76.2102L101.751 74.9111L101.001 73.6121L13.25 124.275L14 125.574ZM101.751 74.9111L102.501 73.6121L14.75 22.949L14 24.248L13.25 25.5471L101.001 76.2102L101.751 74.9111ZM14 24.248H12.5V57.8291H14H15.5V24.248H14ZM14 57.8291L13.25 56.5301L-0.750007 64.6131L0 65.9121L0.750007 67.2111L14.75 59.1281L14 57.8291ZM0 65.9121H1.5V0H0H-1.5V65.9121H0ZM0 0L-0.75 1.29904L129 76.2102L129.75 74.9111L130.5 73.6121L0.75 -1.29904L0 0Z\" fill=\"#63FCFF\" fill-opacity=\"0.7\" mask=\"url(#path-logo-inside)\"></path> <circle cx=\"42.75\" cy=\"75.4111\" r=\"14\" fill=\"#04F3F8\"></circle> <circle cx=\"42.75\" cy=\"75.4111\" r=\"13.25\" stroke=\"#63FCFF\" stroke-opacity=\"0.7\" stroke-width=\"1.5\"></circle></g> <path d=\"M209.488 102.411H197.359V97.3721C195.016 99.4424 192.652 101.024 190.27 102.118C187.887 103.212 185.172 103.759 182.125 103.759C178.609 103.759 175.348 103.056 172.34 101.649C169.332 100.243 166.734 98.29 164.547 95.79C162.398 93.251 160.699 90.2236 159.449 86.708C158.238 83.1924 157.633 79.3447 157.633 75.165C157.633 71.0244 158.238 67.1963 159.449 63.6807C160.699 60.126 162.398 57.0986 164.547 54.5986C166.734 52.0596 169.332 50.0869 172.34 48.6807C175.348 47.2354 178.609 46.5127 182.125 46.5127C185.172 46.5127 187.887 47.04 190.27 48.0947C192.652 49.1104 195.016 50.6533 197.359 52.7236V36.9033H186.812V25.9463H209.488V102.411ZM197.359 62.333C195.914 60.7314 194.039 59.5205 191.734 58.7002C189.469 57.8408 187.301 57.4111 185.23 57.4111C180.66 57.4111 176.93 59.0518 174.039 62.333C171.188 65.6143 169.762 69.8916 169.762 75.165C169.762 80.4385 171.188 84.6963 174.039 87.9385C176.93 91.1807 180.66 92.8018 185.23 92.8018C187.301 92.8018 189.469 92.3916 191.734 91.5713C194.039 90.7119 195.914 89.4814 197.359 87.8799V62.333ZM234.391 79.7354C234.977 83.4854 236.754 86.6104 239.723 89.1104C242.73 91.5713 246.754 92.8018 251.793 92.8018C255.738 92.8018 259.156 92.1963 262.047 90.9854C264.977 89.7354 267.496 88.0947 269.605 86.0635L275.816 94.6182C272.301 98.1338 268.57 100.536 264.625 101.825C260.719 103.114 256.441 103.759 251.793 103.759C247.574 103.759 243.648 103.056 240.016 101.649C236.383 100.243 233.238 98.29 230.582 95.79C227.926 93.251 225.836 90.2432 224.312 86.7666C222.828 83.29 222.086 79.4229 222.086 75.165C222.086 71.0244 222.77 67.2158 224.137 63.7393C225.543 60.2236 227.496 57.1963 229.996 54.6572C232.535 52.0791 235.562 50.0869 239.078 48.6807C242.594 47.2354 246.48 46.5127 250.738 46.5127C255.152 46.5127 259.156 47.2744 262.75 48.7979C266.344 50.2822 269.41 52.4502 271.949 55.3018C274.527 58.1533 276.539 61.6494 277.984 65.79C279.43 69.8916 280.152 74.54 280.152 79.7354H234.391ZM266.441 69.0713C265.816 65.5557 264 62.7432 260.992 60.6338C257.984 58.4854 254.566 57.4111 250.738 57.4111C246.91 57.4111 243.473 58.4854 240.426 60.6338C237.379 62.7432 235.543 65.5557 234.918 69.0713H266.441ZM343.375 47.8018L323.219 102.411H308.922L288.766 47.8018H301.715L316.129 89.1104L330.426 47.8018H343.375ZM391.811 102.411H355.131V91.5127H367.084V36.9033H355.131V25.9463H379.213V91.5127H391.811V102.411ZM460.197 75.165C460.197 79.4229 459.513 83.29 458.146 86.7666C456.818 90.2432 454.884 93.251 452.345 95.79C449.845 98.29 446.837 100.243 443.322 101.649C439.806 103.056 435.88 103.759 431.545 103.759C427.287 103.759 423.4 103.056 419.884 101.649C416.369 100.243 413.341 98.29 410.802 95.79C408.302 93.251 406.369 90.2432 405.002 86.7666C403.673 83.29 403.009 79.4229 403.009 75.165C403.009 71.0244 403.673 67.1963 405.002 63.6807C406.369 60.126 408.302 57.0791 410.802 54.54C413.341 51.9619 416.369 49.9893 419.884 48.6221C423.4 47.2158 427.287 46.5127 431.545 46.5127C435.88 46.5127 439.806 47.2158 443.322 48.6221C446.837 49.9893 449.845 51.9619 452.345 54.54C454.884 57.0791 456.818 60.126 458.146 63.6807C459.513 67.1963 460.197 71.0244 460.197 75.165ZM448.127 75.165C448.127 72.7041 447.736 70.3799 446.955 68.1924C446.212 65.9658 445.119 64.0713 443.673 62.5088C442.228 60.9463 440.47 59.7158 438.4 58.8174C436.369 57.8799 434.084 57.4111 431.545 57.4111C428.966 57.4111 426.662 57.8799 424.63 58.8174C422.599 59.7158 420.88 60.9463 419.474 62.5088C418.068 64.0713 416.974 65.9658 416.193 68.1924C415.451 70.3799 415.08 72.7041 415.08 75.165C415.08 77.7432 415.451 80.0869 416.193 82.1963C416.974 84.3057 418.068 86.1611 419.474 87.7627C420.88 89.3643 422.599 90.6143 424.63 91.5127C426.662 92.3721 428.966 92.8018 431.545 92.8018C434.084 92.8018 436.369 92.3721 438.4 91.5127C440.47 90.6143 442.228 89.3643 443.673 87.7627C445.119 86.1611 446.212 84.3057 446.955 82.1963C447.736 80.0869 448.127 77.7432 448.127 75.165ZM521.427 101.825C521.427 105.575 520.783 108.915 519.494 111.845C518.205 114.774 516.388 117.255 514.045 119.286C511.74 121.317 509.005 122.86 505.841 123.915C502.716 125.009 499.22 125.556 495.353 125.556C485.861 125.556 477.755 122.685 471.037 116.942L476.779 107.567C482.365 112.372 488.556 114.774 495.353 114.774C499.533 114.774 502.892 113.739 505.431 111.669C508.009 109.638 509.298 106.435 509.298 102.06V96.2002C506.798 98.3486 504.396 99.9502 502.091 101.005C499.787 102.021 497.111 102.528 494.064 102.528C490.548 102.528 487.287 101.786 484.279 100.302C481.271 98.8174 478.673 96.8057 476.486 94.2666C474.337 91.6885 472.638 88.7002 471.388 85.3018C470.177 81.9033 469.572 78.29 469.572 74.4619C469.572 70.6338 470.177 67.0205 471.388 63.6221C472.638 60.1846 474.337 57.2158 476.486 54.7158C478.673 52.1768 481.271 50.1846 484.279 48.7393C487.287 47.2549 490.548 46.5127 494.064 46.5127C497.111 46.5127 499.826 47.04 502.209 48.0947C504.591 49.1104 506.955 50.6533 509.298 52.7236V47.8018H521.427V101.825ZM509.298 62.333C507.853 60.7314 505.978 59.5205 503.673 58.7002C501.408 57.8408 499.201 57.4111 497.052 57.4111C492.482 57.4111 488.771 59.0127 485.92 62.2158C483.107 65.4189 481.701 69.501 481.701 74.4619C481.701 76.9229 482.072 79.208 482.814 81.3174C483.595 83.3877 484.65 85.1846 485.978 86.708C487.345 88.2314 488.966 89.4424 490.841 90.3408C492.755 91.2002 494.826 91.6299 497.052 91.6299C499.201 91.6299 501.408 91.2002 503.673 90.3408C505.978 89.4424 507.853 88.1924 509.298 86.5908V62.333Z\" fill=\"white\"></path> <defs><filter id=\"filter0_d_logo\" x=\"-29.9\" y=\"-29.9\" width=\"189.55\" height=\"209.622\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"></feFlood> <feColorMatrix in=\"SourceAlpha\" type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0\" result=\"hardAlpha\"></feColorMatrix> <feOffset></feOffset> <feGaussianBlur stdDeviation=\"14.95\"></feGaussianBlur> <feComposite in2=\"hardAlpha\" operator=\"out\"></feComposite> <feColorMatrix type=\"matrix\" values=\"0 0 0 0 0.386569 0 0 0 0 0.987423 0 0 0 0 1 0 0 0 0.7 0\"></feColorMatrix> <feBlend mode=\"normal\" in2=\"BackgroundImageFix\" result=\"effect1_dropShadow_logo\"></feBlend> <feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"effect1_dropShadow_logo\" result=\"shape\"></feBlend></filter></defs></svg>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

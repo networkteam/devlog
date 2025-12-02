@@ -29,7 +29,7 @@ func TestBody_PartialRead(t *testing.T) {
 
 	// Verify partial capture
 	assert.Equal(t, "This is te", body.String())
-	assert.Equal(t, int64(10), body.Size())
+	assert.Equal(t, uint64(10), body.Size())
 	assert.False(t, body.IsFullyCaptured())
 
 	// Close without reading the rest
@@ -38,7 +38,7 @@ func TestBody_PartialRead(t *testing.T) {
 
 	// Now the body should have captured everything
 	assert.Equal(t, testData, body.String())
-	assert.Equal(t, int64(len(testData)), body.Size())
+	assert.Equal(t, uint64(len(testData)), body.Size())
 
 	// The isFullyCaptured flag should be set to true after Close()
 	assert.True(t, body.IsFullyCaptured())
