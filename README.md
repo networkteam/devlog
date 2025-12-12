@@ -17,10 +17,11 @@ A lightweight, embeddable development dashboard for Go applications. Monitor log
 - **Realtime**: See events as they occur via Server-Sent Events
 - **Clean UI**: Modern, minimalist interface with responsive design
 
-## Note
+## Production Use
 
-Make sure to not activate `devlog` in production systems! It can expose sensible data like API tokens and other secret data in requests and responses.
-We currently do not have any protection of the dashboard handler routes in place.
+devlog can be used in production to inspect requests and debug issues in real-time. Session mode is particularly useful here - each developer only sees events from their own requests, avoiding noise from other users.
+
+**Important:** The dashboard can expose sensitive data like API tokens and secrets in requests and responses. Make sure to protect the dashboard routes with your own authentication middleware.
 
 ## Installation
 
