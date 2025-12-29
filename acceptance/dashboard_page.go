@@ -2,6 +2,7 @@ package acceptance
 
 import (
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -378,4 +379,69 @@ func (dp *DashboardPage) WaitForUsagePanel(timeout float64) {
 		Polling: playwright.Float(100),
 	})
 	require.NoError(dp.t, err, "usage panel did not load content")
+}
+
+// BaseURL returns the origin (scheme://host) from the session URL.
+func (dp *DashboardPage) BaseURL() string {
+	dp.t.Helper()
+
+	parsed, err := url.Parse(dp.SessionURL)
+	require.NoError(dp.t, err)
+	return fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
+}
+
+// DownloadRequestBody finds the "Download" link in the Request Body section and fetches the content.
+// Returns the download URL path (for verification) and the response body content.
+func (dp *DashboardPage) DownloadRequestBody() (path string, body []byte, contentType string) {
+	dp.t.Helper()
+
+	// Find the Request section's Body download link
+	// Structure: div with h3 "Request" > div with h4 "Body" > a[download] "Download"
+	link := dp.Page.Locator("#event-details").Locator("h3:has-text('Request')").Locator("..").Locator("h4:has-text('Body')").Locator("..").Locator("a[download]:has-text('Download')")
+
+	href, err := link.GetAttribute("href")
+	require.NoError(dp.t, err, "failed to get request body download link href")
+	require.NotEmpty(dp.t, href, "request body download link should have href")
+
+	// Use Playwright's native API request context (shares browser cookies/context)
+	fullURL := dp.BaseURL() + href
+	response, err := dp.Page.Request().Get(fullURL)
+	require.NoError(dp.t, err, "failed to fetch request body download")
+	require.Equal(dp.t, 200, response.Status(), "request body download should return 200")
+
+	bodyBytes, err := response.Body()
+	require.NoError(dp.t, err, "failed to read request body")
+
+	headers := response.Headers()
+	ct := headers["content-type"]
+
+	return href, bodyBytes, ct
+}
+
+// DownloadResponseBody finds the "Download" link in the Response Body section and fetches the content.
+// Returns the download URL path (for verification) and the response body content.
+func (dp *DashboardPage) DownloadResponseBody() (path string, body []byte, contentType string) {
+	dp.t.Helper()
+
+	// Find the Response section's Body download link
+	// Structure: div with h3 "Response" > div with h4 "Body" > a[download] "Download"
+	link := dp.Page.Locator("#event-details").Locator("h3:has-text('Response')").Locator("..").Locator("h4:has-text('Body')").Locator("..").Locator("a[download]:has-text('Download')")
+
+	href, err := link.GetAttribute("href")
+	require.NoError(dp.t, err, "failed to get response body download link href")
+	require.NotEmpty(dp.t, href, "response body download link should have href")
+
+	// Use Playwright's native API request context (shares browser cookies/context)
+	fullURL := dp.BaseURL() + href
+	response, err := dp.Page.Request().Get(fullURL)
+	require.NoError(dp.t, err, "failed to fetch response body download")
+	require.Equal(dp.t, 200, response.Status(), "response body download should return 200")
+
+	bodyBytes, err := response.Body()
+	require.NoError(dp.t, err, "failed to read response body")
+
+	headers := response.Headers()
+	ct := headers["content-type"]
+
+	return href, bodyBytes, ct
 }

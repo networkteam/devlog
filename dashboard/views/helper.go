@@ -72,6 +72,16 @@ type HandlerOptions struct {
 	CaptureMode   string // "session" or "global"
 }
 
+// BuildDownloadRequestBodyURL builds a URL for downloading the request body of an event
+func (opts HandlerOptions) BuildDownloadRequestBodyURL(eventID string) string {
+	return fmt.Sprintf("%s/s/%s/download/request-body/%s", opts.PathPrefix, opts.SessionID, eventID)
+}
+
+// BuildDownloadResponseBodyURL builds a URL for downloading the response body of an event
+func (opts HandlerOptions) BuildDownloadResponseBodyURL(eventID string) string {
+	return fmt.Sprintf("%s/s/%s/download/response-body/%s", opts.PathPrefix, opts.SessionID, eventID)
+}
+
 // BuildEventDetailURL builds a URL for event detail view, preserving capture state
 func (opts HandlerOptions) BuildEventDetailURL(eventID string) string {
 	base := fmt.Sprintf("%s/s/%s/", opts.PathPrefix, opts.SessionID)
