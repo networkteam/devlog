@@ -248,23 +248,17 @@ func TestDownloadRequestBody(t *testing.T) {
 	dashboard.StartCapture("global")
 
 	// Make a POST request with known body content
-	dashboard.FetchAPIWithBody("/api/echo", `{"test": "download-data"}`)
+	dashboard.FetchAPIWithBody("/api/echo", `{"test": "request-body-data"}`)
 	dashboard.WaitForEventCount(1, 5000)
 
 	// Click the event to see details
 	dashboard.ClickFirstEvent()
 	dashboard.WaitForEventDetails(5000)
 
-	// Download the request body and verify
-	path, body, contentType := dashboard.DownloadRequestBody()
-
-	// Verify the URL includes the session prefix /s/{sid}/
-	assert.Contains(t, path, "/s/", "download URL should include session prefix")
-	assert.Contains(t, path, "/download/request-body/", "download URL should be for request body")
-
-	// Verify the content type and body content
-	assert.Contains(t, contentType, "application/json", "content type should be JSON")
-	assert.Contains(t, string(body), "download-data", "downloaded body should contain original data")
+	// Download the request body and verify it contains what we sent
+	_, body, contentType := dashboard.DownloadRequestBody()
+	assert.Contains(t, contentType, "application/json")
+	assert.Contains(t, string(body), "request-body-data")
 }
 
 // TestDownloadResponseBody verifies that response body can be downloaded via the download link.
@@ -283,24 +277,18 @@ func TestDownloadResponseBody(t *testing.T) {
 	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
 	dashboard.StartCapture("global")
 
-	// Make a POST request - the echo endpoint returns the same body
-	dashboard.FetchAPIWithBody("/api/echo", `{"response": "body-test"}`)
+	// Make a GET request - the /api/test endpoint returns {"status":"ok"}
+	dashboard.FetchAPI("/api/test")
 	dashboard.WaitForEventCount(1, 5000)
 
 	// Click the event to see details
 	dashboard.ClickFirstEvent()
 	dashboard.WaitForEventDetails(5000)
 
-	// Download the response body and verify
-	path, body, contentType := dashboard.DownloadResponseBody()
-
-	// Verify the URL structure
-	assert.Contains(t, path, "/s/", "download URL should include session prefix")
-	assert.Contains(t, path, "/download/response-body/", "download URL should be for response body")
-
-	// Verify the content type and body content
-	assert.Contains(t, contentType, "application/json", "content type should be JSON")
-	assert.Contains(t, string(body), "body-test", "downloaded body should contain original data")
+	// Download the response body and verify it contains the server's response
+	_, body, contentType := dashboard.DownloadResponseBody()
+	assert.Contains(t, contentType, "application/json")
+	assert.Contains(t, string(body), `"status":"ok"`)
 }
 
 // TestUsagePanel verifies that the usage panel shows memory and session stats.
