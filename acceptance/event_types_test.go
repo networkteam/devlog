@@ -4,252 +4,232 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// -----------------------------------------------------------------------------
-// HTTP Server Event Tests
-// -----------------------------------------------------------------------------
-
-// TestHTTPServerEvents verifies that HTTP server request events are displayed correctly.
-func TestHTTPServerEvents(t *testing.T) {
+// TestHTTPServerEvent tests HTTP server request event capture and display.
+func TestHTTPServerEvent(t *testing.T) {
 	t.Parallel()
 
-	app := NewTestApp(t)
-	defer app.Close()
+	t.Run("GET /api/test", func(t *testing.T) {
+		t.Parallel()
 
-	pw := NewPlaywrightFixture(t)
-	defer pw.Close()
+		t.Run("captures basic request", func(t *testing.T) {
+			t.Parallel()
+			WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+				f.Dashboard.StartCapture("global")
 
-	ctx := pw.NewContext(t)
-	defer ctx.Close()
+				f.Dashboard.FetchAPI("/api/test")
+				f.Dashboard.WaitForEventCount(1, 5000)
 
-	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
-	dashboard.StartCapture("global")
+				text := f.Dashboard.GetFirstEventText()
+				assert.Contains(t, text, "GET")
+				assert.Contains(t, text, "/api/test")
+			})
+		})
 
-	// Make HTTP server request
-	dashboard.FetchAPI("/api/test")
+		t.Run("download response body", func(t *testing.T) {
+			t.Parallel()
+			WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+				f.Dashboard.StartCapture("global")
 
-	dashboard.WaitForEventCount(1, 5000)
+				// Make a GET request - the /api/test endpoint returns {"status":"ok"}
+				f.Dashboard.FetchAPI("/api/test")
+				f.Dashboard.WaitForEventCount(1, 5000)
 
-	// Verify event appears with correct info
-	text := dashboard.GetFirstEventText()
-	assert.Contains(t, text, "GET")
-	assert.Contains(t, text, "/api/test")
+				f.Dashboard.ClickFirstEvent()
+				f.Dashboard.WaitForEventDetails(5000)
+
+				// Download the response body and verify it contains the server's response
+				_, body, contentType := f.Dashboard.DownloadResponseBody()
+				assert.Contains(t, contentType, "application/json")
+				assert.Contains(t, string(body), `"status":"ok"`)
+			})
+		})
+	})
+
+	t.Run("POST /api/echo", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("captures request with body", func(t *testing.T) {
+			t.Parallel()
+			WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+				f.Dashboard.StartCapture("global")
+
+				f.Dashboard.FetchAPIWithBody("/api/echo", `{"message": "hello"}`)
+				f.Dashboard.WaitForEventCount(1, 5000)
+
+				text := f.Dashboard.GetFirstEventText()
+				assert.Contains(t, text, "POST")
+				assert.Contains(t, text, "/api/echo")
+			})
+		})
+
+		t.Run("download request body", func(t *testing.T) {
+			t.Parallel()
+			WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+				f.Dashboard.StartCapture("global")
+
+				f.Dashboard.FetchAPIWithBody("/api/echo", `{"test": "request-body-data"}`)
+				f.Dashboard.WaitForEventCount(1, 5000)
+
+				f.Dashboard.ClickFirstEvent()
+				f.Dashboard.WaitForEventDetails(5000)
+
+				_, body, contentType := f.Dashboard.DownloadRequestBody()
+				assert.Contains(t, contentType, "application/json")
+				assert.Contains(t, string(body), "request-body-data")
+			})
+		})
+
+		t.Run("large request body", func(t *testing.T) {
+			t.Parallel()
+			WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+				f.Dashboard.StartCapture("global")
+
+				_, err := f.Dashboard.Page.Evaluate(`
+					const largeData = 'x'.repeat(10000);
+					fetch('/api/echo', {
+						method: 'POST',
+						headers: {'Content-Type': 'text/plain'},
+						body: largeData
+					})
+				`)
+				require.NoError(t, err)
+
+				f.Dashboard.WaitForEventCount(1, 5000)
+				assert.Equal(t, 1, f.Dashboard.GetEventCount())
+			})
+		})
+	})
 }
 
-// TestHTTPServerEventWithPOST verifies POST requests are displayed correctly.
-func TestHTTPServerEventWithPOST(t *testing.T) {
+// TestHTTPClientEvent tests outgoing HTTP client request capture.
+func TestHTTPClientEvent(t *testing.T) {
 	t.Parallel()
 
-	app := NewTestApp(t)
-	defer app.Close()
+	t.Run("captures outgoing request", func(t *testing.T) {
+		t.Parallel()
+		WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+			f.Dashboard.StartCapture("global")
 
-	pw := NewPlaywrightFixture(t)
-	defer pw.Close()
+			// Trigger endpoint that makes HTTP client request
+			f.Dashboard.FetchAPI("/api/external")
 
-	ctx := pw.NewContext(t)
-	defer ctx.Close()
+			// Wait for the HTTP server event (the endpoint response)
+			f.Dashboard.WaitForEventCount(1, 5000)
 
-	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
-	dashboard.StartCapture("global")
+			// Click to see details - the HTTP client request should be nested
+			f.Dashboard.ClickFirstEvent()
+			f.Dashboard.WaitForEventDetails(5000)
 
-	// Make POST request
-	dashboard.FetchAPIWithBody("/api/echo", `{"message": "hello"}`)
-
-	dashboard.WaitForEventCount(1, 5000)
-
-	// Verify POST is shown
-	text := dashboard.GetFirstEventText()
-	assert.Contains(t, text, "POST")
-	assert.Contains(t, text, "/api/echo")
+			text := f.Dashboard.GetEventDetailsText()
+			assert.Contains(t, text, "/api/external")
+		})
+	})
 }
 
-// -----------------------------------------------------------------------------
-// HTTP Client Event Tests
-// -----------------------------------------------------------------------------
-
-// TestHTTPClientEvents verifies that outgoing HTTP client requests are captured.
-func TestHTTPClientEvents(t *testing.T) {
+// TestDBQueryEvent tests database query event capture.
+func TestDBQueryEvent(t *testing.T) {
 	t.Parallel()
 
-	app := NewTestApp(t)
-	defer app.Close()
+	t.Run("captures query", func(t *testing.T) {
+		t.Parallel()
+		WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+			f.Dashboard.StartCapture("global")
 
-	pw := NewPlaywrightFixture(t)
-	defer pw.Close()
+			// Trigger endpoint that creates DB query event
+			f.Dashboard.FetchAPI("/api/db")
 
-	ctx := pw.NewContext(t)
-	defer ctx.Close()
+			// Should have HTTP request event which contains DB query as child
+			f.Dashboard.WaitForEventCount(1, 5000)
 
-	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
-	dashboard.StartCapture("global")
+			// Click to see details
+			f.Dashboard.ClickFirstEvent()
+			f.Dashboard.WaitForEventDetails(5000)
 
-	// Trigger endpoint that makes HTTP client request
-	dashboard.FetchAPI("/api/external")
-
-	// Wait for the HTTP server event (the endpoint response)
-	dashboard.WaitForEventCount(1, 5000)
-
-	// Click to see details - the HTTP client request should be nested
-	dashboard.ClickFirstEvent()
-	dashboard.WaitForEventDetails(5000)
-
-	text := dashboard.GetEventDetailsText()
-	assert.Contains(t, text, "/api/external")
+			text := f.Dashboard.GetEventDetailsText()
+			assert.Contains(t, text, "/api/db")
+		})
+	})
 }
 
-// -----------------------------------------------------------------------------
-// Database Query Event Tests
-// -----------------------------------------------------------------------------
-
-// TestDBQueryEvents verifies that database query events are captured.
-func TestDBQueryEvents(t *testing.T) {
+// TestLogEvent tests structured logging (slog) event capture.
+func TestLogEvent(t *testing.T) {
 	t.Parallel()
 
-	app := NewTestApp(t)
-	defer app.Close()
+	t.Run("captures slog entries", func(t *testing.T) {
+		t.Parallel()
+		WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+			f.Dashboard.StartCapture("global")
 
-	pw := NewPlaywrightFixture(t)
-	defer pw.Close()
+			// Trigger endpoint that creates log events
+			f.Dashboard.FetchAPI("/api/log")
 
-	ctx := pw.NewContext(t)
-	defer ctx.Close()
+			// HTTP server event should appear (logs are nested inside)
+			f.Dashboard.WaitForEventCount(1, 5000)
 
-	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
-	dashboard.StartCapture("global")
-
-	// Trigger endpoint that creates DB query event
-	dashboard.FetchAPI("/api/db")
-
-	// Should have HTTP request event which contains DB query as child
-	dashboard.WaitForEventCount(1, 5000)
-
-	// Click to see details
-	dashboard.ClickFirstEvent()
-	dashboard.WaitForEventDetails(5000)
-
-	// The parent HTTP event details should be shown
-	text := dashboard.GetEventDetailsText()
-	assert.Contains(t, text, "/api/db")
+			text := f.Dashboard.GetFirstEventText()
+			assert.Contains(t, text, "/api/log")
+		})
+	})
 }
 
-// -----------------------------------------------------------------------------
-// Log Event Tests
-// -----------------------------------------------------------------------------
-
-// TestLogEvents verifies that slog entries appear in the event list.
-func TestLogEvents(t *testing.T) {
+// TestNestedEvent tests parent-child event relationships.
+func TestNestedEvent(t *testing.T) {
 	t.Parallel()
 
-	app := NewTestApp(t)
-	defer app.Close()
+	t.Run("parent-child relationships", func(t *testing.T) {
+		t.Parallel()
+		WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+			f.Dashboard.StartCapture("global")
 
-	pw := NewPlaywrightFixture(t)
-	defer pw.Close()
+			// Trigger endpoint that creates multiple nested events (logs + DB query)
+			f.Dashboard.FetchAPI("/api/combined")
 
-	ctx := pw.NewContext(t)
-	defer ctx.Close()
+			// Wait for the parent HTTP event
+			f.Dashboard.WaitForEventCount(1, 5000)
 
-	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
-	dashboard.StartCapture("global")
+			text := f.Dashboard.GetFirstEventText()
+			assert.Contains(t, text, "/api/combined")
+		})
+	})
 
-	// Trigger endpoint that creates log events
-	dashboard.FetchAPI("/api/log")
+	t.Run("show children", func(t *testing.T) {
+		t.Parallel()
+		WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+			f.Dashboard.StartCapture("global")
 
-	// HTTP server event should appear (logs are nested inside)
-	dashboard.WaitForEventCount(1, 5000)
+			// Trigger endpoint that creates multiple nested events
+			f.Dashboard.FetchAPI("/api/combined")
 
-	// Verify the first event contains the log endpoint
-	text := dashboard.GetFirstEventText()
-	assert.Contains(t, text, "/api/log")
+			f.Dashboard.WaitForEventCount(1, 5000)
+
+			// The parent HTTP event should be shown
+			text := f.Dashboard.GetFirstEventText()
+			assert.Contains(t, text, "/api/combined")
+		})
+	})
 }
 
-// -----------------------------------------------------------------------------
-// Nested Event Tests
-// -----------------------------------------------------------------------------
-
-// TestNestedEvents verifies that parent-child event relationships are displayed correctly.
-func TestNestedEvents(t *testing.T) {
-	t.Parallel()
-
-	app := NewTestApp(t)
-	defer app.Close()
-
-	pw := NewPlaywrightFixture(t)
-	defer pw.Close()
-
-	ctx := pw.NewContext(t)
-	defer ctx.Close()
-
-	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
-	dashboard.StartCapture("global")
-
-	// Trigger endpoint that creates multiple nested events (logs + DB query)
-	dashboard.FetchAPI("/api/combined")
-
-	// Wait for the parent HTTP event
-	dashboard.WaitForEventCount(1, 5000)
-
-	// Verify the first event contains the combined endpoint
-	text := dashboard.GetFirstEventText()
-	assert.Contains(t, text, "/api/combined")
-}
-
-// TestNestedEventsShowChildren verifies that nested events are visible in the UI.
-func TestNestedEventsShowChildren(t *testing.T) {
-	t.Parallel()
-
-	app := NewTestApp(t)
-	defer app.Close()
-
-	pw := NewPlaywrightFixture(t)
-	defer pw.Close()
-
-	ctx := pw.NewContext(t)
-	defer ctx.Close()
-
-	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
-	dashboard.StartCapture("global")
-
-	// Trigger endpoint that creates multiple nested events
-	dashboard.FetchAPI("/api/combined")
-
-	dashboard.WaitForEventCount(1, 5000)
-
-	// The event list item should indicate it has children
-	// Look for the event item and check if there's visual indication of nested events
-	text := dashboard.GetFirstEventText()
-	// The parent HTTP event should be shown
-	assert.Contains(t, text, "/api/combined")
-}
-
-// -----------------------------------------------------------------------------
-// Multiple Event Types Together
-// -----------------------------------------------------------------------------
-
-// TestMixedEventTypes verifies that different event types are all captured and displayed.
+// TestMixedEventTypes tests multiple event types captured simultaneously.
 func TestMixedEventTypes(t *testing.T) {
 	t.Parallel()
 
-	app := NewTestApp(t)
-	defer app.Close()
+	t.Run("multiple types simultaneously", func(t *testing.T) {
+		t.Parallel()
+		WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+			f.Dashboard.StartCapture("global")
 
-	pw := NewPlaywrightFixture(t)
-	defer pw.Close()
+			// Trigger multiple endpoints that create different event types
+			f.Dashboard.FetchAPI("/api/test")     // Simple HTTP
+			f.Dashboard.FetchAPI("/api/log")      // HTTP + logs
+			f.Dashboard.FetchAPI("/api/db")       // HTTP + DB query
+			f.Dashboard.FetchAPI("/api/combined") // HTTP + logs + DB
 
-	ctx := pw.NewContext(t)
-	defer ctx.Close()
-
-	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
-	dashboard.StartCapture("global")
-
-	// Trigger multiple endpoints that create different event types
-	dashboard.FetchAPI("/api/test")     // Simple HTTP
-	dashboard.FetchAPI("/api/log")      // HTTP + logs
-	dashboard.FetchAPI("/api/db")       // HTTP + DB query
-	dashboard.FetchAPI("/api/combined") // HTTP + logs + DB
-
-	// Should have 4 top-level HTTP events
-	dashboard.WaitForEventCount(4, 10000)
-	assert.Equal(t, 4, dashboard.GetEventCount())
+			// Should have 4 top-level HTTP events
+			f.Dashboard.WaitForEventCount(4, 10000)
+			assert.Equal(t, 4, f.Dashboard.GetEventCount())
+		})
+	})
 }
