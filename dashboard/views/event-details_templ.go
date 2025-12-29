@@ -464,7 +464,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPClientRequ
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var22 templ.SafeURL = templ.SafeURL(fmt.Sprintf("%s/download/request-body/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID))
+			var templ_7745c5c3_Var22 templ.SafeURL = templ.SafeURL(MustGetHandlerOptions(ctx).BuildDownloadRequestBodyURL(event.ID.String()))
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var22)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -537,7 +537,7 @@ func HTTPRequestDetails(event *collector.Event, request collector.HTTPClientRequ
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var25 templ.SafeURL = templ.SafeURL(fmt.Sprintf("%s/download/response-body/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID))
+			var templ_7745c5c3_Var25 templ.SafeURL = templ.SafeURL(MustGetHandlerOptions(ctx).BuildDownloadResponseBodyURL(event.ID.String()))
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var25)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -768,7 +768,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var40 templ.SafeURL = templ.SafeURL(fmt.Sprintf("%s/download/request-body/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID))
+			var templ_7745c5c3_Var40 templ.SafeURL = templ.SafeURL(MustGetHandlerOptions(ctx).BuildDownloadRequestBodyURL(event.ID.String()))
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var40)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -841,7 +841,7 @@ func HTTPServerRequestDetails(event *collector.Event, request collector.HTTPServ
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var43 templ.SafeURL = templ.SafeURL(fmt.Sprintf("%s/download/response-body/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID))
+			var templ_7745c5c3_Var43 templ.SafeURL = templ.SafeURL(MustGetHandlerOptions(ctx).BuildDownloadResponseBodyURL(event.ID.String()))
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var43)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

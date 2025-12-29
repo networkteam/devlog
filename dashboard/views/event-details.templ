@@ -167,7 +167,7 @@ templ HTTPRequestDetails(event *collector.Event, request collector.HTTPClientReq
                     <div class="flex items-center justify-between mb-2">
                         <h4 class="text-sm font-semibold">Body</h4>
                         <a
-                            href={ templ.SafeURL(fmt.Sprintf("%s/download/request-body/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID)) }
+                            href={ templ.SafeURL(MustGetHandlerOptions(ctx).BuildDownloadRequestBodyURL(event.ID.String())) }
                             class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             download
                         >
@@ -215,7 +215,7 @@ templ HTTPRequestDetails(event *collector.Event, request collector.HTTPClientReq
                     <div class="flex items-center justify-between mb-2">
                         <h4 class="text-sm font-semibold">Body</h4>
                         <a
-                            href={ templ.SafeURL(fmt.Sprintf("%s/download/response-body/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID)) }
+                            href={ templ.SafeURL(MustGetHandlerOptions(ctx).BuildDownloadResponseBodyURL(event.ID.String())) }
                             class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             download
                         >
@@ -314,7 +314,7 @@ templ HTTPServerRequestDetails(event *collector.Event, request collector.HTTPSer
                     <div class="flex items-center justify-between mb-2">
                         <h4 class="text-sm font-semibold">Body</h4>
                         <a
-                            href={ templ.SafeURL(fmt.Sprintf("%s/download/request-body/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID)) }
+                            href={ templ.SafeURL(MustGetHandlerOptions(ctx).BuildDownloadRequestBodyURL(event.ID.String())) }
                             class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             download
                         >
@@ -362,7 +362,7 @@ templ HTTPServerRequestDetails(event *collector.Event, request collector.HTTPSer
                     <div class="flex items-center justify-between mb-2">
                         <h4 class="text-sm font-semibold">Body</h4>
                         <a
-                            href={ templ.SafeURL(fmt.Sprintf("%s/download/response-body/%s", MustGetHandlerOptions(ctx).PathPrefix, event.ID)) }
+                            href={ templ.SafeURL(MustGetHandlerOptions(ctx).BuildDownloadResponseBodyURL(event.ID.String())) }
                             class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             download
                         >

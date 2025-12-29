@@ -231,6 +231,66 @@ func TestNewSessionAfterBrowserClose(t *testing.T) {
 	assert.Equal(t, 0, dashboard2.GetEventCount(), "new session should have no events")
 }
 
+// TestDownloadRequestBody verifies that request body can be downloaded via the download link.
+func TestDownloadRequestBody(t *testing.T) {
+	t.Parallel()
+
+	app := NewTestApp(t)
+	defer app.Close()
+
+	pw := NewPlaywrightFixture(t)
+	defer pw.Close()
+
+	ctx := pw.NewContext(t)
+	defer ctx.Close()
+
+	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
+	dashboard.StartCapture("global")
+
+	// Make a POST request with known body content
+	dashboard.FetchAPIWithBody("/api/echo", `{"test": "request-body-data"}`)
+	dashboard.WaitForEventCount(1, 5000)
+
+	// Click the event to see details
+	dashboard.ClickFirstEvent()
+	dashboard.WaitForEventDetails(5000)
+
+	// Download the request body and verify it contains what we sent
+	_, body, contentType := dashboard.DownloadRequestBody()
+	assert.Contains(t, contentType, "application/json")
+	assert.Contains(t, string(body), "request-body-data")
+}
+
+// TestDownloadResponseBody verifies that response body can be downloaded via the download link.
+func TestDownloadResponseBody(t *testing.T) {
+	t.Parallel()
+
+	app := NewTestApp(t)
+	defer app.Close()
+
+	pw := NewPlaywrightFixture(t)
+	defer pw.Close()
+
+	ctx := pw.NewContext(t)
+	defer ctx.Close()
+
+	dashboard := NewDashboardPage(t, ctx, app.DevlogURL)
+	dashboard.StartCapture("global")
+
+	// Make a GET request - the /api/test endpoint returns {"status":"ok"}
+	dashboard.FetchAPI("/api/test")
+	dashboard.WaitForEventCount(1, 5000)
+
+	// Click the event to see details
+	dashboard.ClickFirstEvent()
+	dashboard.WaitForEventDetails(5000)
+
+	// Download the response body and verify it contains the server's response
+	_, body, contentType := dashboard.DownloadResponseBody()
+	assert.Contains(t, contentType, "application/json")
+	assert.Contains(t, string(body), `"status":"ok"`)
+}
+
 // TestUsagePanel verifies that the usage panel shows memory and session stats.
 func TestUsagePanel(t *testing.T) {
 	t.Parallel()
