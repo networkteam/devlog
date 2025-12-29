@@ -333,26 +333,22 @@ func (dp *DashboardPage) WaitForEventDetails(timeout float64) {
 	require.NoError(dp.t, err, "failed to wait for event details")
 }
 
-// FetchAPI executes a fetch request from the browser context and waits for the response.
+// FetchAPI executes a GET request using Playwright's API request context (shares browser cookies).
 func (dp *DashboardPage) FetchAPI(path string) {
 	dp.t.Helper()
 
-	// Wait for the fetch to complete fully (read the response body)
-	_, err := dp.Page.Evaluate(fmt.Sprintf(`fetch('%s').then(r => r.text())`, path))
+	_, err := dp.Page.Request().Get(dp.BaseURL() + path)
 	require.NoError(dp.t, err)
 }
 
-// FetchAPIWithBody executes a POST fetch request with JSON body from the browser context.
+// FetchAPIWithBody executes a POST request with JSON body using Playwright's API request context.
 func (dp *DashboardPage) FetchAPIWithBody(path string, body string) {
 	dp.t.Helper()
 
-	js := fmt.Sprintf(`fetch('%s', {
-		method: 'POST',
-		headers: {'Content-Type': 'application/json'},
-		body: JSON.stringify(%s)
-	})`, path, body)
-
-	_, err := dp.Page.Evaluate(js)
+	_, err := dp.Page.Request().Post(dp.BaseURL()+path, playwright.APIRequestContextPostOptions{
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Data:    body,
+	})
 	require.NoError(dp.t, err)
 }
 
