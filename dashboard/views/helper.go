@@ -102,7 +102,7 @@ func (opts HandlerOptions) BuildEventDetailURL(eventID string) string {
 // Context key for HandlerOptions
 type handlerOptionsKey struct{}
 
-// SetHandlerOptions adds HandlerOptions to the context
+// WithHandlerOptions adds HandlerOptions to the context
 func WithHandlerOptions(ctx context.Context, opts HandlerOptions) context.Context {
 	return context.WithValue(ctx, handlerOptionsKey{}, opts)
 }
