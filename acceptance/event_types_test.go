@@ -152,6 +152,26 @@ func TestDBQueryEvent(t *testing.T) {
 			assert.Contains(t, text, "/api/db")
 		})
 	})
+
+	t.Run("copies query with interpolated values to clipboard", func(t *testing.T) {
+		t.Parallel()
+		WithTestFixtures(t, func(t *testing.T, f *TestFixtures) {
+			f.Dashboard.GrantClipboardPermissions()
+
+			f.Dashboard.StartCapture("global")
+			f.Dashboard.FetchAPI("/api/db")
+			f.Dashboard.WaitForEventCount(1, 5000)
+
+			// The DB query is captured as a child of the HTTP server event.
+			f.Dashboard.ClickFirstChildEvent()
+
+			f.Dashboard.ClickCopyQueryButton()
+
+			clipboardText := f.Dashboard.GetClipboardText()
+			assert.Contains(t, clipboardText, "'1'", "clipboard should contain the substituted argument value")
+			assert.NotContains(t, clipboardText, "$1", "clipboard should not contain the unresolved placeholder")
+		})
+	})
 }
 
 // TestLogEvent tests structured logging (slog) event capture.

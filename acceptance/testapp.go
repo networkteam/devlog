@@ -92,11 +92,13 @@ func NewTestApp(t *testing.T) *TestApp {
 	// Test endpoint: simulates DB query (DB query event)
 	mux.HandleFunc("GET /api/db", func(w http.ResponseWriter, r *http.Request) {
 		// Simulate a DB query event
+		interpolatedQuery := "SELECT * FROM users WHERE id = '1'"
 		collectDBQuery(r.Context(), collector.DBQuery{
-			Query:    "SELECT * FROM users WHERE id = $1",
-			Args:     []driver.NamedValue{{Ordinal: 1, Value: 1}},
-			Duration: 5 * time.Millisecond,
-			Language: "postgresql",
+			Query:             "SELECT * FROM users WHERE id = $1",
+			Args:              []driver.NamedValue{{Ordinal: 1, Value: 1}},
+			InterpolatedQuery: &interpolatedQuery,
+			Duration:          5 * time.Millisecond,
+			Language:          "postgresql",
 		})
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
