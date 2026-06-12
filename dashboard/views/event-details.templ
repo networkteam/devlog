@@ -439,10 +439,22 @@ templ LogRecordDetails(event *collector.Event, record slog.Record) {
 templ DBQueryDetails(event *collector.Event, query collector.DBQuery) {
     <div class="p-4">
         <div class="mb-4">
-            <h3 class="text-lg font-semibold mb-2">Database Query</h3>
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-lg font-semibold">Database Query</h3>
+                if query.InterpolatedQuery != nil {
+                    <button
+                        type="button"
+                        data-copy-query
+                        class={ buttonClasses(ButtonProps{Variant: ButtonVariantOutline, Size: ButtonSizeSm}) }
+                    >Copy with values</button>
+                }
+            </div>
             <div class="bg-neutral-50 p-4 rounded">
                 <pre id="db-query" class="whitespace-pre-wrap break-all">{ query.Query }</pre>
             </div>
+            if query.InterpolatedQuery != nil {
+                <pre id="db-query-interpolated" class="hidden">{ *query.InterpolatedQuery }</pre>
+            }
         </div>
 
         if len(query.Args) > 0 {
@@ -485,11 +497,28 @@ templ DBQueryDetails(event *collector.Event, query collector.DBQuery) {
     </div>
     <script>
     (function() {
+        var language = {{ query.Language }} || "sql";
+
         var queryContent = document.getElementById('db-query');
-        var output = sqlFormatter.format(queryContent.textContent, {
-            language: {{ query.Language }} || "sql",
+        queryContent.textContent = sqlFormatter.format(queryContent.textContent, {
+            language: language,
         });
-        queryContent.textContent = output;
+
+        var copyBtn = document.querySelector('[data-copy-query]');
+        var interpolated = document.getElementById('db-query-interpolated');
+        if (copyBtn && interpolated) {
+            copyBtn.addEventListener('click', function() {
+                var sql = interpolated.textContent;
+                try {
+                    sql = sqlFormatter.format(sql, { language: language });
+                } catch (e) { /* fall back to the unformatted statement */ }
+                navigator.clipboard.writeText(sql).then(function() {
+                    var original = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(function() { copyBtn.textContent = original; }, 1500);
+                });
+            });
+        }
     })();
     </script>
 }

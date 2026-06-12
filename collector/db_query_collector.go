@@ -14,6 +14,10 @@ type DBQuery struct {
 	Query string
 	// Args of the query or statement
 	Args []driver.NamedValue
+	// InterpolatedQuery is an optional standalone SQL statement with the Args
+	// already substituted into the placeholders, ready to be pasted into a
+	// database UI.
+	InterpolatedQuery *string
 	// Duration of executing the query or statement
 	Duration time.Duration
 	// Timestamp when the query or statement was started
@@ -28,6 +32,9 @@ type DBQuery struct {
 func (q DBQuery) Size() uint64 {
 	size := uint64(100) // base struct overhead
 	size += uint64(len(q.Query))
+	if q.InterpolatedQuery != nil {
+		size += uint64(len(*q.InterpolatedQuery))
+	}
 	size += uint64(len(q.Language))
 	// Calculate actual size of arguments using reflection
 	for _, arg := range q.Args {
