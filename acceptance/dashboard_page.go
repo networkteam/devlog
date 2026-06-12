@@ -250,6 +250,43 @@ func (dp *DashboardPage) ClickFirstEvent() {
 	dp.WaitForEventDetails(5000)
 }
 
+// GrantClipboardPermissions allows the page to read from and write to the clipboard,
+// which is required for asserting on copy-to-clipboard interactions.
+func (dp *DashboardPage) GrantClipboardPermissions() {
+	dp.t.Helper()
+
+	err := dp.Page.Context().GrantPermissions([]string{"clipboard-read", "clipboard-write"})
+	require.NoError(dp.t, err, "failed to grant clipboard permissions")
+}
+
+// ClickCopyQueryButton clicks the "Copy with values" button in the DB query details.
+func (dp *DashboardPage) ClickCopyQueryButton() {
+	dp.t.Helper()
+
+	copyButton := dp.Page.Locator("button:has-text('Copy with values')")
+	err := copyButton.WaitFor(playwright.LocatorWaitForOptions{
+		State:   playwright.WaitForSelectorStateVisible,
+		Timeout: playwright.Float(5000),
+	})
+	require.NoError(dp.t, err, "failed to wait for copy query button")
+
+	err = copyButton.Click()
+	require.NoError(dp.t, err, "failed to click copy query button")
+}
+
+// GetClipboardText returns the current clipboard contents.
+// GrantClipboardPermissions must have been called first.
+func (dp *DashboardPage) GetClipboardText() string {
+	dp.t.Helper()
+
+	clipboard, err := dp.Page.Evaluate("() => navigator.clipboard.readText()")
+	require.NoError(dp.t, err, "failed to read clipboard")
+
+	text, ok := clipboard.(string)
+	require.True(dp.t, ok, "clipboard content should be a string")
+	return text
+}
+
 // ClickFirstChildEvent clicks on the first child event (nested inside a parent event).
 func (dp *DashboardPage) ClickFirstChildEvent() {
 	dp.t.Helper()
