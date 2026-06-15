@@ -1,8 +1,9 @@
-go 1.23.8
+go 1.25.0
 
 use (
 	.
 	./acceptance
+	./cli
 	./dbadapter/sqllogger
 	./example
 )

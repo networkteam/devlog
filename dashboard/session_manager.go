@@ -140,6 +140,41 @@ func (sm *SessionManager) Delete(sessionID uuid.UUID) {
 	delete(sm.sessions, sessionID)
 }
 
+// SessionInfo describes an active capture session.
+type SessionInfo struct {
+	SessionID  uuid.UUID
+	Mode       collector.CaptureMode
+	Capturing  bool
+	EventCount int
+	LastActive time.Time
+}
+
+// List returns info about all active sessions.
+func (sm *SessionManager) List() []SessionInfo {
+	sm.sessionsMu.RLock()
+	defer sm.sessionsMu.RUnlock()
+
+	out := make([]SessionInfo, 0, len(sm.sessions))
+	for sessionID, state := range sm.sessions {
+		storage := sm.eventAggregator.GetStorage(state.storageID)
+		if storage == nil {
+			continue
+		}
+		cs, ok := storage.(*collector.CaptureStorage)
+		if !ok {
+			continue
+		}
+		out = append(out, SessionInfo{
+			SessionID:  sessionID,
+			Mode:       cs.CaptureMode(),
+			Capturing:  cs.IsCapturing(),
+			EventCount: len(cs.GetEvents(^uint64(0))),
+			LastActive: state.lastActive,
+		})
+	}
+	return out
+}
+
 // UpdateActivity updates the last active time for a session
 func (sm *SessionManager) UpdateActivity(sessionID uuid.UUID) {
 	sm.sessionsMu.Lock()

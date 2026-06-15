@@ -11,6 +11,7 @@ A lightweight, embeddable development dashboard for Go applications. Monitor log
 - **HTTP Server**: Track incoming HTTP requests to your application
 - **SQL Queries**: Monitor database queries with timing and arguments
 - **On-Demand Capture**: Start/stop capturing through the dashboard UI with session or global modes
+- **Agent Access (MCP)**: Expose captured events to AI coding agents over the Model Context Protocol (opt-in)
 - **Multi-User Isolation**: Each user gets their own event storage with independent clearing
 - **Low Overhead**: Designed to be lightweight; no events captured until you start a session
 - **Easy to Integrate**: Embeds into your application with minimal configuration
@@ -298,6 +299,133 @@ dlog := devlog.NewWithOptions(devlog.Options{
 	},
 })
 ```
+
+## Agent Access (MCP)
+
+devlog can expose its captured events to AI coding agents (Claude Code, Cursor, …) over the
+[Model Context Protocol](https://modelcontextprotocol.io). An agent can then list requests,
+inspect SQL queries and logs, fetch bodies, and control capture — giving it the same context a
+developer reads in the dashboard.
+
+This consists of two parts:
+
+1. A read-only **Agent JSON API** mounted on the dashboard handler (under `/api/agent/v1/`).
+2. The **`devlog` CLI** (`./cli` module), which exposes that API to an agent over MCP.
+
+> The browser-relayed variant for **deployed** (stage/production) instances is a separate, planned
+> phase. What is described here is the local-development path. See
+> [`docs/design/agent-access.md`](docs/design/agent-access.md) and
+> [`docs/design/agent-access-relay.md`](docs/design/agent-access-relay.md) for the full design.
+
+### Enabling the API
+
+The Agent JSON API is **off by default** — unlike the dashboard UI (which shows data to a human on
+screen), the agent API is consumed by tools that may forward data to third-party LLM providers, so
+it must be enabled deliberately. Enable it with `WithAgentAPI()`:
+
+```go
+mux.Handle("/_devlog/", http.StripPrefix("/_devlog", dlog.DashboardHandler("/_devlog",
+	dashboard.WithAgentAPI(),
+)))
+```
+
+It inherits whatever authentication middleware you have placed in front of the dashboard.
+
+#### Redaction
+
+Sensitive header values are masked by default (`Authorization`, `Cookie`, `Set-Cookie`,
+`WWW-Authenticate`, `Proxy-Authenticate`, `Proxy-Authorization`), with the key preserved so an agent
+can tell a header is redacted rather than absent. Request/response bodies are never inlined in list
+or detail responses — only metadata is — and are served (capped) by dedicated endpoints.
+
+```go
+dlog.DashboardHandler("/_devlog",
+	dashboard.WithAgentAPI(),
+	dashboard.WithAgentRedactedHeaders("X-Api-Key"),    // mask additional headers
+	dashboard.WithAgentMaxBodyBytes(64*1024),           // cap body bytes served (default: 64 KiB)
+	dashboard.WithAgentRedactor(func(d *dashboard.EventDetail) *dashboard.EventDetail {
+		// Mutate the detail (e.g. clear d.RequestBody.Available to suppress a body),
+		// or return nil to drop the event from the agent API entirely.
+		return d
+	}),
+	// dashboard.WithAgentInsecureHeaders(),            // disable header masking (local dev only)
+)
+```
+
+#### Endpoints
+
+All responses are JSON; errors use `{"error": "..."}`. `{sid}` is the capture session id.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET  | `/api/agent/v1/s/{sid}/events` | Event summaries, newest first. Filters: `type`, `since`/`until` (RFC 3339), `limit`, `status` (e.g. `5xx`), `path` |
+| GET  | `/api/agent/v1/s/{sid}/events/{id}` | Full event detail incl. child events and body metadata |
+| GET  | `/api/agent/v1/s/{sid}/events/{id}/request-body` | Raw request body (redaction- and cap-aware) |
+| GET  | `/api/agent/v1/s/{sid}/events/{id}/response-body` | Raw response body (redaction- and cap-aware) |
+| GET  | `/api/agent/v1/s/{sid}/capture/status` | `{active, mode, eventCount}` (read-only; capture is started/stopped by the user in the dashboard) |
+| GET  | `/api/agent/v1/sessions` | List active capture sessions (for the relay to attach to) |
+| GET  | `/api/agent/v1/stats` | Memory and event statistics |
+
+### The `devlog` CLI
+
+The CLI lives in the `./cli` module and bridges the JSON API to an agent over MCP. In `--direct`
+mode it talks to a local devlog instance over plain HTTP — no browser tunnel involved.
+
+The relay does **not** create its own capture session — it **attaches to an existing one** so the
+agent and your dashboard see the same events. Open the dashboard and start a capture first, then:
+
+```bash
+# from the repository root (workspace) or the ./cli module
+go run ./cli relay --direct http://localhost:8080/_devlog --mcp-port 4319
+
+# or build a binary
+go build -C cli -o devlog .
+./cli/devlog relay --direct http://localhost:8080/_devlog --mcp-port 4319
+```
+
+On startup the relay lists active sessions: if exactly one is active it attaches automatically; if
+several are, it prompts you to choose; if none exist yet it waits until one appears. Use
+`--session <sid>` (the id from the dashboard URL) to attach non-interactively. Because the dashboard
+tab owns the session, no agent-side lifetime management is needed — when you close the dashboard the
+session ends normally.
+
+The relay binds to `127.0.0.1` only and serves an MCP endpoint at `http://127.0.0.1:<port>/mcp`. The
+endpoint validates the `Host` header is a loopback literal to block DNS-rebinding from a browser.
+
+MCP tools exposed (all read-only): `list_events`, `get_event`, `get_request_body`,
+`get_response_body`, `capture_status`, `get_stats`, `list_environments`. The agent cannot start or
+stop capture — you manage capture from the dashboard; the agent only piggy-backs on your session.
+
+### Integrating with an agent
+
+For an MCP client that supports streamable-HTTP servers (e.g. Claude Code), point it at the relay's
+MCP URL. With Claude Code, add a project-scoped `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "devlog": {
+      "type": "http",
+      "url": "http://127.0.0.1:4319/mcp"
+    }
+  }
+}
+```
+
+Keep the relay running while the agent is connected. A typical flow: you open the dashboard and start
+capturing, the relay attaches to that session, you exercise the application, then the agent calls
+`list_events` / `get_event` to inspect what happened. Capture is forward-looking — events are
+captured from the moment capture starts in the dashboard.
+
+### Security notes
+
+- **Opt-in and auth-inherited.** The API is disabled unless `WithAgentAPI()` is set and is protected
+  by your existing dashboard authentication middleware.
+- **Egress awareness.** Data returned to an agent may be sent to an LLM provider. Default header
+  redaction and the body size cap limit exposure; add a `WithAgentRedactor` for application-specific
+  scrubbing, and prefer leaving the API off where regulated data flows through.
+- **Loopback only.** The CLI binds to `127.0.0.1` and rejects non-loopback `Host` headers on the MCP
+  endpoint.
 
 ## Development
 
