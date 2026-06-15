@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -22,12 +23,22 @@ const DefaultStorageCapacity uint64 = 1000
 // DefaultSessionIdleTimeout is the default time before an inactive session is cleaned up
 const DefaultSessionIdleTimeout = 30 * time.Second
 
+// DefaultAgentMaxBodyBytes is the default cap on body bytes served by the agent
+// body endpoints.
+const DefaultAgentMaxBodyBytes uint64 = 64 * 1024
+
 type Handler struct {
 	sessions        *SessionManager
 	eventAggregator *collector.EventAggregator
 
 	pathPrefix    string
 	truncateAfter uint64
+
+	// Agent API configuration (see WithAgentAPI and friends).
+	agentRedactor        AgentRedactor
+	agentRedactedHeaders map[string]bool // lowercased header names to mask
+	agentInsecureHeaders bool
+	agentMaxBodyBytes    uint64
 
 	mux http.Handler
 }
@@ -59,6 +70,11 @@ func NewHandler(eventAggregator *collector.EventAggregator, opts ...HandlerOptio
 		sessionIdleTimeout = DefaultSessionIdleTimeout
 	}
 
+	agentMaxBodyBytes := options.AgentMaxBodyBytes
+	if agentMaxBodyBytes == 0 {
+		agentMaxBodyBytes = DefaultAgentMaxBodyBytes
+	}
+
 	sessions := NewSessionManager(SessionManagerOptions{
 		EventAggregator: eventAggregator,
 		StorageCapacity: storageCapacity,
@@ -67,11 +83,15 @@ func NewHandler(eventAggregator *collector.EventAggregator, opts ...HandlerOptio
 	})
 
 	handler := &Handler{
-		sessions:        sessions,
-		eventAggregator: eventAggregator,
-		truncateAfter:   truncateAfter,
-		pathPrefix:      options.PathPrefix,
-		mux:             mux,
+		sessions:             sessions,
+		eventAggregator:      eventAggregator,
+		truncateAfter:        truncateAfter,
+		pathPrefix:           options.PathPrefix,
+		agentRedactor:        options.AgentRedactor,
+		agentRedactedHeaders: buildRedactedHeaderSet(options.AgentExtraRedactedHeaders),
+		agentInsecureHeaders: options.AgentInsecureHeaders,
+		agentMaxBodyBytes:    agentMaxBodyBytes,
+		mux:                  mux,
 	}
 
 	// Static assets (no session required)
@@ -99,7 +119,32 @@ func NewHandler(eventAggregator *collector.EventAggregator, opts ...HandlerOptio
 	mux.HandleFunc("GET /s/{sid}/capture/status", handler.captureStatus)
 	mux.HandleFunc("POST /s/{sid}/capture/cleanup", handler.captureCleanup)
 
+	// Agent JSON API (opt-in). Routes only exist when enabled, so they 404
+	// naturally otherwise.
+	if options.AgentAPI {
+		mux.HandleFunc("GET /api/agent/v1/s/{sid}/events", handler.agentListEvents)
+		mux.HandleFunc("GET /api/agent/v1/s/{sid}/events/{eventId}", handler.agentEventDetail)
+		mux.HandleFunc("GET /api/agent/v1/s/{sid}/events/{eventId}/request-body", handler.agentRequestBody)
+		mux.HandleFunc("GET /api/agent/v1/s/{sid}/events/{eventId}/response-body", handler.agentResponseBody)
+		mux.HandleFunc("GET /api/agent/v1/s/{sid}/capture/status", handler.agentCaptureStatus)
+		mux.HandleFunc("GET /api/agent/v1/sessions", handler.agentListSessions)
+		mux.HandleFunc("GET /api/agent/v1/stats", handler.agentStats)
+	}
+
 	return handler
+}
+
+// buildRedactedHeaderSet returns the lowercased set of header names to mask,
+// combining the built-in defaults with any embedder-provided extras.
+func buildRedactedHeaderSet(extra []string) map[string]bool {
+	set := make(map[string]bool, len(defaultRedactedHeaders)+len(extra))
+	for _, name := range defaultRedactedHeaders {
+		set[strings.ToLower(name)] = true
+	}
+	for _, name := range extra {
+		set[strings.ToLower(name)] = true
+	}
+	return set
 }
 
 // withHandlerOptions is a helper to set HandlerOptions in context before rendering
