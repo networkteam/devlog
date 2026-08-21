@@ -67,6 +67,12 @@ func TestNewBodyFromBytes_Truncated(t *testing.T) {
 	assert.False(t, body.IsFullyCaptured())
 }
 
+func TestNewBody_NilReaderIsFullyCaptured(t *testing.T) {
+	body := collector.NewBody(nil, 100)
+
+	assert.True(t, body.IsFullyCaptured())
+}
+
 // Fix for TestBody_ReadAfterClose
 func TestBody_ReadAfterClose(t *testing.T) {
 	// Create test data

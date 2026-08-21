@@ -34,6 +34,9 @@ func NewBody(rc io.ReadCloser, limit int) *Body {
 		reader: rc,
 		buffer: NewLimitedBuffer(limit),
 	}
+	if rc == nil {
+		b.isFullyCaptured = true
+	}
 	return b
 }
 
