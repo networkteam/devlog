@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/gofrs/uuid"
 )
 
 // HTTPClientOptions configures the HTTP client collector
@@ -85,6 +87,42 @@ func (c *HTTPClientCollector) Subscribe(ctx context.Context) <-chan HTTPClientRe
 // Add adds an HTTP request to the collector and notifies subscribers
 func (c *HTTPClientCollector) Add(req HTTPClientRequest) {
 	c.notifier.Notify(req)
+}
+
+// Collect records an HTTP client request that was not performed through the
+// transport returned by Transport, e.g. a response served from a local cache.
+//
+// In contrast to Add, it honours capture sessions and groups the request under
+// the current event group taken from ctx.
+func (c *HTTPClientCollector) Collect(ctx context.Context, req HTTPClientRequest) {
+	if c.eventAggregator != nil && !c.eventAggregator.ShouldCapture(ctx) {
+		return
+	}
+
+	if req.ID == uuid.Nil {
+		req.ID = generateID()
+	}
+	if req.RequestTime.IsZero() {
+		req.RequestTime = time.Now()
+	}
+	if req.ResponseTime.IsZero() {
+		req.ResponseTime = req.RequestTime
+	}
+
+	for _, transformer := range c.options.Transformers {
+		req = transformer(req)
+	}
+
+	c.notifier.Notify(req)
+	if c.eventAggregator != nil {
+		c.eventAggregator.CollectEvent(ctx, req)
+	}
+}
+
+// MaxBodySize returns the configured maximum body size for this collector,
+// for callers building a *Body via NewBodyFromBytes for use with Collect.
+func (c *HTTPClientCollector) MaxBodySize() int {
+	return c.options.MaxBodySize
 }
 
 // Close releases resources used by the collector
