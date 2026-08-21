@@ -34,6 +34,20 @@ func NewBody(rc io.ReadCloser, limit int) *Body {
 		reader: rc,
 		buffer: NewLimitedBuffer(limit),
 	}
+	if rc == nil {
+		b.isFullyCaptured = true
+	}
+	return b
+}
+
+// NewBodyFromBytes creates a Body pre-populated with the given content, for
+// callers that already hold the complete payload.
+func NewBodyFromBytes(content []byte, limit int) *Body {
+	b := &Body{
+		buffer: NewLimitedBuffer(limit),
+	}
+	b.buffer.Write(content)
+	b.isFullyCaptured = !b.buffer.IsTruncated()
 	return b
 }
 

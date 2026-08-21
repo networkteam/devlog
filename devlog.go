@@ -118,6 +118,13 @@ func (i *Instance) CollectDBQuery() func(ctx context.Context, dbQuery collector.
 	return i.dbQueryCollector.Collect
 }
 
+// CollectHTTPClientRequest allows to record outgoing HTTP requests that were not
+// performed through the transport returned by CollectHTTPClient, e.g. responses
+// served from a cache.
+func (i *Instance) CollectHTTPClientRequest() func(ctx context.Context, req collector.HTTPClientRequest) {
+	return i.httpClientCollector.Collect
+}
+
 // DashboardHandler creates a dashboard handler mounted at the given path prefix.
 // Use functional options from the dashboard package to customize behavior:
 //
