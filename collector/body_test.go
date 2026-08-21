@@ -44,6 +44,29 @@ func TestBody_PartialRead(t *testing.T) {
 	assert.True(t, body.IsFullyCaptured())
 }
 
+func TestNewBodyFromBytes(t *testing.T) {
+	content := []byte("This is test data for a synthetic body")
+
+	body := collector.NewBodyFromBytes(content, 100)
+
+	assert.Equal(t, content, body.Bytes())
+	assert.Equal(t, string(content), body.String())
+	assert.Equal(t, uint64(len(content)), body.Size())
+	assert.False(t, body.IsTruncated())
+	assert.True(t, body.IsFullyCaptured())
+}
+
+func TestNewBodyFromBytes_Truncated(t *testing.T) {
+	content := []byte("This is test data that exceeds the configured limit")
+
+	body := collector.NewBodyFromBytes(content, 10)
+
+	assert.Equal(t, content[:10], body.Bytes())
+	assert.Equal(t, uint64(10), body.Size())
+	assert.True(t, body.IsTruncated())
+	assert.False(t, body.IsFullyCaptured())
+}
+
 // Fix for TestBody_ReadAfterClose
 func TestBody_ReadAfterClose(t *testing.T) {
 	// Create test data

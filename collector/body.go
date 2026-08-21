@@ -37,6 +37,17 @@ func NewBody(rc io.ReadCloser, limit int) *Body {
 	return b
 }
 
+// NewBodyFromBytes creates a Body pre-populated with the given content, for
+// callers that already hold the complete payload.
+func NewBodyFromBytes(content []byte, limit int) *Body {
+	b := &Body{
+		buffer: NewLimitedBuffer(limit),
+	}
+	b.buffer.Write(content)
+	b.isFullyCaptured = !b.buffer.IsTruncated()
+	return b
+}
+
 func (b *Body) Read(p []byte) (n int, err error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
