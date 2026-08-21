@@ -124,6 +124,9 @@ templ HTTPRequestDetails(event *collector.Event, request collector.HTTPClientReq
                     <span>{ formatTime(request.RequestTime) }</span>
                 </div>
             </div>
+            if len(request.Tags) > 0 {
+                @tagList(request.Tags)
+            }
         </div>
 
         <!-- URL Details -->
