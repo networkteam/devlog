@@ -84,7 +84,9 @@ func (c *HTTPClientCollector) Subscribe(ctx context.Context) <-chan HTTPClientRe
 	return c.notifier.Subscribe(ctx)
 }
 
-// Add adds an HTTP request to the collector and notifies subscribers
+// Add notifies subscribers of an HTTP request. It does not apply transformers
+// or involve the event aggregator. For a synthetic request not performed through
+// Transport, use Collect instead.
 func (c *HTTPClientCollector) Add(req HTTPClientRequest) {
 	c.notifier.Notify(req)
 }
